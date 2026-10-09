@@ -1,58 +1,68 @@
-import React, { useContext } from 'react'
-import { Route, Routes } from 'react-router-dom'
-import Start from './pages/Start'
-import UserLogin from './pages/UserLogin'
-import UserSignup from './pages/UserSignup'
-import Captainlogin from './pages/Captainlogin'
-import CaptainSignup from './pages/CaptainSignup'
-import Home from './pages/Home'
-import UserProtectWrapper from './pages/UserProtectWrapper'
-import UserLogout from './pages/UserLogout'
-import CaptainHome from './pages/CaptainHome'
-import CaptainProtectWrapper from './pages/CaptainProtectWrapper'
-import CaptainLogout from './pages/CaptainLogout'
-import Riding from './pages/Riding'
-import CaptainRiding from './pages/CaptainRiding'
-import 'remixicon/fonts/remixicon.css'
+import { useEffect } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { useAuth } from './store/auth'
+import { useRealtime } from './hooks/useRealtime'
+import { useDriverLocation } from './hooks/useDriverLocation'
+import Layout from './components/Layout'
+import Toasts from './components/Toasts'
+import { GuestOnly, RequireRole } from './components/RequireRole'
+import Landing from './pages/public/Landing'
+import Login from './pages/public/Login'
+import Register from './pages/public/Register'
+import ForgotPassword from './pages/public/ForgotPassword'
+import ResetPassword from './pages/public/ResetPassword'
+import BookDriver from './pages/customer/BookDriver'
+import MyBookings from './pages/customer/MyBookings'
+import CustomerBookingDetail from './pages/customer/BookingDetail'
+import CustomerProfile from './pages/customer/Profile'
+import DriverDashboard from './pages/driver/DriverDashboard'
+import DriverBookings from './pages/driver/DriverBookings'
+import DriverBookingDetail from './pages/driver/DriverBookingDetail'
+import DriverProfile from './pages/driver/DriverProfile'
+import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminDrivers from './pages/admin/AdminDrivers'
+import AdminCustomers from './pages/admin/AdminCustomers'
+import AdminBookings from './pages/admin/AdminBookings'
 
-const App = () => {
+const as = (role, element) => <RequireRole role={role}>{element}</RequireRole>
+const guest = (element) => <GuestOnly>{element}</GuestOnly>
+
+export default function App() {
+  const { load, role, account } = useAuth()
+
+  useEffect(() => { load() }, [load])
+  useRealtime()
+  useDriverLocation(role === 'driver' && account?.isOnline)
 
   return (
-    <div>
+    <>
+      <Toasts />
       <Routes>
-        <Route path='/' element={<Start />} />
-        <Route path='/login' element={<UserLogin />} />
-        <Route path='/riding' element={<Riding />} />
-        <Route path='/captain-riding' element={<CaptainRiding />} />
+        <Route path='/' element={guest(<Landing />)} />
+        <Route path='/login' element={guest(<Login />)} />
+        <Route path='/register' element={guest(<Register />)} />
+        <Route path='/forgot-password' element={<ForgotPassword />} />
+        <Route path='/reset-password' element={<ResetPassword />} />
 
-        <Route path='/signup' element={<UserSignup />} />
-        <Route path='/captain-login' element={<Captainlogin />} />
-        <Route path='/captain-signup' element={<CaptainSignup />} />
-        <Route path='/home'
-          element={
-            <UserProtectWrapper>
-              <Home />
-            </UserProtectWrapper>
-          } />
-        <Route path='/user/logout'
-          element={<UserProtectWrapper>
-            <UserLogout />
-          </UserProtectWrapper>
-          } />
-        <Route path='/captain-home' element={
-          <CaptainProtectWrapper>
-            <CaptainHome />
-          </CaptainProtectWrapper>
+        <Route element={<Layout />}>
+          <Route path='/book' element={as('customer', <BookDriver />)} />
+          <Route path='/bookings' element={as('customer', <MyBookings />)} />
+          <Route path='/bookings/:id' element={as('customer', <CustomerBookingDetail />)} />
+          <Route path='/profile' element={as('customer', <CustomerProfile />)} />
 
-        } />
-        <Route path='/captain/logout' element={
-          <CaptainProtectWrapper>
-            <CaptainLogout />
-          </CaptainProtectWrapper>
-        } />
+          <Route path='/driver' element={as('driver', <DriverDashboard />)} />
+          <Route path='/driver/bookings' element={as('driver', <DriverBookings />)} />
+          <Route path='/driver/bookings/:id' element={as('driver', <DriverBookingDetail />)} />
+          <Route path='/driver/profile' element={as('driver', <DriverProfile />)} />
+
+          <Route path='/admin' element={as('admin', <AdminDashboard />)} />
+          <Route path='/admin/drivers' element={as('admin', <AdminDrivers />)} />
+          <Route path='/admin/customers' element={as('admin', <AdminCustomers />)} />
+          <Route path='/admin/bookings' element={as('admin', <AdminBookings />)} />
+        </Route>
+
+        <Route path='*' element={<Navigate to='/' replace />} />
       </Routes>
-    </div>
+    </>
   )
 }
-
-export default App

@@ -1,481 +1,124 @@
-# Backend API Documentation
+# Driver on Demand API
 
-## `/users/register` Endpoint
+Express + MongoDB API for the Driver on Demand platform. Setup is in the [project README](../README.md); all settings are listed in [`.env.example`](.env.example).
 
-### Description
+## Conventions
 
-Registers a new user by creating a user account with the provided information.
+- **Auth:** log in or register to receive a `token` cookie (HTTP-only, 24 hours). Browsers send it automatically with `withCredentials`; other clients may send `Authorization: Bearer <token>` instead.
+- **Roles:** `customer`, `driver`, `admin`. Each route below lists who may call it; others get `401`. Suspended accounts get `403`.
+- **Errors:** JSON `{ "message": "..." }`. Validation errors (`400`) also include `errors: [{ field, message }]`.
+- **Places** are sent as `{ "address": "...", "lat": 28.98, "lng": 77.70 }`. `lat`/`lng` come from `/maps/suggestions`; when missing, the server geocodes the address.
+- **Times** are ISO 8601 strings with a time zone, e.g. `2026-10-10T10:00:00+05:30`.
 
-### HTTP Method
+## Auth — `/auth`
 
-`POST`
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| POST | `/register/customer` | `{ fullname: { firstname, lastname? }, email, phone, password }` | Password ≥ 8 characters. Returns `{ role, account }` and sets the cookie. |
+| POST | `/register/driver` | same | Driver starts with verification `pending`. |
+| POST | `/login` | `{ role, email, password }` | `role` is `customer`, `driver` or `admin`. |
+| POST | `/logout` | — | Any role. Revokes the token. |
+| GET | `/me` | — | Any role. `{ role, account }`. |
+| POST | `/forgot-password` | `{ role, email }` | Always `200`; emails (or logs) a link valid for 30 minutes. |
+| POST | `/reset-password` | `{ role, token, password }` | Token from the link; single use. |
 
-### Request Body
+Login, register and password routes are rate limited per IP (`AUTH_RATE_LIMIT_MAX` per 15 minutes).
 
-The request body should be in JSON format and include the following fields:
+## Customers — `/customers` (customer)
 
-- `fullname` (object):
-  - `firstname` (string, required): User's first name (minimum 3 characters).
-  - `lastname` (string, optional): User's last name (minimum 3 characters).
-- `email` (string, required): User's email address (must be a valid email).
-- `password` (string, required): User's password (minimum 6 characters).
+| Method | Path | Body |
+|---|---|---|
+| PATCH | `/me` | `{ fullname?, phone? }` |
+| POST | `/me/locations` | `{ label, place }` (up to 10 saved places) |
+| DELETE | `/me/locations/:id` | — |
 
-### Example Response
+## Maps — `/maps` (any role)
 
-- `user` (object):
-  - `fullname` (object).
-    - `firstname` (string): User's first name (minimum 3 characters).
-    - `lastname` (string): User's last name (minimum 3 characters).   
-  - `email` (string): User's email address (must be a valid email).
-  - `password` (string): User's password (minimum 6 characters).
-- `token` (String): JWT Token
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/suggestions?input=meer` | `[{ label, lat, lng }]` (Google provider: `[{ label }]`) |
+| GET | `/reverse?lat=..&lng=..` | `{ address, lat, lng }` |
 
-## `/users/login` Endpoint
+## Drivers — `/drivers`
 
-### Description
+| Method | Path | Who | Notes |
+|---|---|---|---|
+| GET | `/me` | driver | `{ account, missingFields }`; `missingFields` lists what blocks verification. |
+| PATCH | `/me` | driver | Any of: `fullname, phone, profilePhotoUrl, about, experienceYears, languages[], services[], vehicleTypes[], transmissions[], rates { hourly, fullDay, outstationPerDay }, serviceRadiusKm, address, licence { number, expiry }, emergencyContact { name, phone }, baseLocation (place)`. Changing the licence of a verified driver sends them back to review. |
+| POST | `/me/submit-verification` | driver | `pending`/`rejected` → `under_review` when nothing is missing. |
+| PATCH | `/me/availability` | driver | `{ isOnline }`; only verified drivers with a location. |
+| PATCH | `/me/location` | driver | `{ lat, lng }` (the app also sends `driver:location` over the socket). |
+| GET | `/me/dashboard` | driver | Today's earnings and trips, pending/upcoming/active counts, totals, rating. |
+| POST | `/search` | customer | Booking details (below) plus `filters { language?, minRating?, minExperience?, maxPrice? }` and `sort` (`recommended`, `distance`, `price`, `rating`, `experience`). Returns `{ startTime, endTime, duration, routeEstimate, drivers: [{ ...publicProfile, distanceKm, price }] }`. |
+| GET | `/:id` | customer | Public profile of a verified driver with the latest 20 reviews. |
 
-Authenticates a user using their email and password, returning a JWT token upon successful login.
+Values: `services` = `hourly, full_day, outstation, multi_day, airport, event`; `vehicleTypes` = `hatchback, sedan, suv, muv, luxury`; `transmissions` = `manual, automatic`.
 
-### HTTP Method
+Search only returns drivers who are verified, active and online; within both `SEARCH_RADIUS_KM` and their own `serviceRadiusKm` of the pickup; offer the booking type; can drive the car type and transmission; have the needed rates; and have no booked hours in the booking window.
 
-`POST`
+## Bookings — `/bookings`
 
-### Endpoint
-
-`/users/login`
-
-### Request Body
-
-The request body should be in JSON format and include the following fields:
-
-- `email` (string, required): User's email address (must be a valid email).
-- `password` (string, required): User's password (minimum 6 characters).
-
-### Example Response
-
-- `user` (object):
-  - `fullname` (object).
-    - `firstname` (string): User's first name (minimum 3 characters).
-    - `lastname` (string): User's last name (minimum 3 characters).   
-  - `email` (string): User's email address (must be a valid email).
-  - `password` (string): User's password (minimum 6 characters).
-- `token` (String): JWT Token
-
-## `/users/profile` Endpoint
-
-### Description
-
-Retrieves the profile information of the currently authenticated user.
-
-### HTTP Method
-
-`GET`
-
-### Authentication
-
-Requires a valid JWT token in the Authorization header:
-`Authorization: Bearer <token>`
-
-### Example Response
-
-- `user` (object):
-  - `fullname` (object).
-    - `firstname` (string): User's first name (minimum 3 characters).
-    - `lastname` (string): User's last name (minimum 3 characters).   
-  - `email` (string): User's email address (must be a valid email).
-
-
-
-## `/users/logout` Endpoint
-
-### Description
-
-Logout the current user and blacklist the token provided in cookie or headers
-
-### HTTP Method
-
-`GET`
-
-### Authentication
-
-Requires a valid JWT token in the Authorization header or cookie:
-
-- `user` (object):
-  - `fullname` (object).
-    - `firstname` (string): User's first name (minimum 3 characters).
-    - `lastname` (string): User's last name (minimum 3 characters).   
-  - `email` (string): User's email address (must be a valid email).
-  - `password` (string): User's password (minimum 6 characters).
-- `token` (String): JWT Token## `/captains/register` Endpoint
-
-### Description
-
-Registers a new captain by creating a captain account with the provided information.
-
-### HTTP Method
-
-`POST`
-
-### Request Body
-
-The request body should be in JSON format and include the following fields:
-
-- `fullname` (object):
-  - `firstname` (string, required): Captain's first name (minimum 3 characters)
-  - `lastname` (string, optional): Captain's last name
-- `email` (string, required): Captain's email address (must be a valid email)
-- `password` (string, required): Captain's password (minimum 6 characters)
-- `vehicle` (object):
-  - `color` (string, required): Vehicle color (minimum 3 characters)
-  - `plate` (string, required): Vehicle plate number (minimum 3 characters)
-  - `capacity` (number, required): Vehicle passenger capacity (minimum 1)
-  - `vehicleType` (string, required): Type of vehicle (must be 'car', 'motorcycle', or 'auto')
-
-### Example Response
-
-
-## `/captains/register` Endpoint
-
-### Description
-
-Registers a new captain by creating a captain account with the provided information.
-
-### HTTP Method
-
-`POST`
-
-### Request Body
-
-The request body should be in JSON format and include the following fields:
-
-- `fullname` (object):
-  - `firstname` (string, required): Captain's first name (minimum 3 characters).
-  - `lastname` (string, optional): Captain's last name (minimum 3 characters).
-- `email` (string, required): Captain's email address (must be a valid email).
-- `password` (string, required): Captain's password (minimum 6 characters).
-- `vehicle` (object):
-  - `color` (string, required): Vehicle color (minimum 3 characters).
-  - `plate` (string, required): Vehicle plate number (minimum 3 characters).
-  - `capacity` (number, required): Vehicle passenger capacity (minimum 1).
-  - `vehicleType` (string, required): Type of vehicle (must be 'car', 'motorcycle', or 'auto').
-
-### Example Response
-
-- `captain` (object):
-  - `fullname` (object).
-    - `firstname` (string): Captain's first name (minimum 3 characters).
-    - `lastname` (string): Captain's last name (minimum 3 characters).   
-  - `email` (string): Captain's email address (must be a valid email).
-  - `password` (string): Captain's password (minimum 6 characters).
-  - `vehicle` (object):
-    - `color` (string): Vehicle color.
-    - `plate` (string): Vehicle plate number.
-    - `capacity` (number): Vehicle passenger capacity.
-    - `vehicleType` (string): Type of vehicle.
-- `token` (String): JWT Token
-
-## `/captains/login` Endpoint
-
-### Description
-
-Authenticates a captain using their email and password, returning a JWT token upon successful login.
-
-### HTTP Method
-
-`POST`
-
-### Endpoint
-
-`/captains/login`
-
-### Request Body
-
-The request body should be in JSON format and include the following fields:
-
-- `email` (string, required): Captain's email address (must be a valid email).
-- `password` (string, required): Captain's password (minimum 6 characters).
-
-### Example Response
-
-- `captain` (object):
-  - `fullname` (object).
-    - `firstname` (string): Captain's first name (minimum 3 characters).
-    - `lastname` (string): Captain's last name (minimum 3 characters).   
-  - `email` (string): Captain's email address (must be a valid email).
-  - `password` (string): Captain's password (minimum 6 characters).
-  - `vehicle` (object):
-    - `color` (string): Vehicle color.
-    - `plate` (string): Vehicle plate number.
-    - `capacity` (number): Vehicle passenger capacity.
-    - `vehicleType` (string): Type of vehicle.
-- `token` (String): JWT Token
-
-## `/captains/profile` Endpoint
-
-### Description
-
-Retrieves the profile information of the currently authenticated captain.
-
-### HTTP Method
-
-`GET`
-
-### Authentication
-
-Requires a valid JWT token in the Authorization header:
-`Authorization: Bearer <token>`
-
-### Example Response
-
-- `captain` (object):
-  - `fullname` (object).
-    - `firstname` (string): Captain's first name (minimum 3 characters).
-    - `lastname` (string): Captain's last name (minimum 3 characters).   
-  - `email` (string): Captain's email address (must be a valid email).
-  - `vehicle` (object):
-    - `color` (string): Vehicle color.
-    - `plate` (string): Vehicle plate number.
-    - `capacity` (number): Vehicle passenger capacity.
-    - `vehicleType` (string): Type of vehicle.
-
-## `/captains/logout` Endpoint
-
-### Description
-
-Logout the current captain and blacklist the token provided in cookie or headers.
-
-### HTTP Method
-
-`GET`
-
-### Authentication
-
-Requires a valid JWT token in the Authorization header or cookie.
-
-### Example Response
-
-- `message` (string): Logout successfully.
-
-
-## `/maps/get-coordinates` Endpoint
-
-### Description
-
-Retrieves the coordinates (latitude and longitude) for a given address.
-
-### HTTP Method
-
-`GET`
-
-### Request Parameters
-
-- `address` (string, required): The address for which to retrieve coordinates.
-
-### Example Request
-
-GET `/maps/get-coordinates?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA`
-
-### Example Response
+**Booking details** (used by `/drivers/search` and `POST /bookings`):
 
 ```json
 {
-  "ltd": 37.4224764,
-  "lng": -122.0842499
+  "bookingType": "outstation",
+  "tripType": "round_trip",
+  "pickup": { "address": "Meerut City Railway Station", "lat": 28.9845, "lng": 77.7064 },
+  "destination": { "address": "Hawa Mahal, Jaipur", "lat": 26.9239, "lng": 75.8267 },
+  "startTime": "2026-10-10T06:00:00+05:30",
+  "duration": 3,
+  "vehicle": { "type": "suv", "transmission": "manual", "model": "Toyota Fortuner" },
+  "notes": "Two elderly passengers"
 }
 ```
 
-### Error Response
-
-- `400 Bad Request`: If the address parameter is missing or invalid.
-- `404 Not Found`: If the coordinates for the given address could not be found.
-
-```json
-{
-  "message": "Coordinates not found"
-}
-```
-
-## `/maps/get-distance-time` Endpoint
-
-### Description
-
-Retrieves the distance and estimated travel time between two locations.
-
-### HTTP Method
-
-`GET`
-
-### Request Parameters
-
-- `origin` (string, required): The starting address or location.
-- `destination` (string, required): The destination address or location.
-
-### Example Request
-
-```
-GET /maps/get-distance-time?origin=New+York,NY&destination=Los+Angeles,CA
-```
-
-### Example Response
-
-```json
-{
-  "distance": {
-    "text": "2,789 miles",
-    "value": 4486540
-  },
-  "duration": {
-    "text": "1 day 18 hours",
-    "value": 154800
-  }
-}
-```
-
-### Error Response
-
-- `400 Bad Request`: If the origin or destination parameter is missing or invalid.
-- `404 Not Found`: If the distance and time for the given locations could not be found.
-
-```json
-{
-  "message": "No routes found"
-}
-```
-
-## `/maps/get-suggestions` Endpoint
-
-### Description
-
-Retrieves autocomplete suggestions for a given input string.
-
-### HTTP Method
-
-`GET`
-
-### Request Parameters
-
-- `input` (string, required): The input string for which to retrieve suggestions.
-
-### Example Request
-
-```
-GET /maps/get-suggestions?input=1600+Amphitheatre
-```
-
-### Example Response
-
-```json
-[
-  "1600 Amphitheatre Parkway, Mountain View, CA, USA",
-  "1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA"
-]
-```
-
-### Error Response
-
-- `400 Bad Request`: If the input parameter is missing or invalid.
-- `500 Internal Server Error`: If there is an error retrieving suggestions.
-
-```json
-{
-  "message": "Unable to fetch suggestions"
-}
-```
-
-## `/rides/create` Endpoint
-
-### Description
-
-Creates a new ride with the provided information.
-
-### HTTP Method
-
-`POST`
-
-### Authentication
-
-Requires a valid JWT token in the Authorization header:
-`Authorization: Bearer <token>`
-
-### Request Body
-
-The request body should be in JSON format and include the following fields:
-
-- `pickup` (string, required): The pickup address (minimum 3 characters).
-- `destination` (string, required): The destination address (minimum 3 characters).
-- `vehicleType` (string, required): The type of vehicle (must be 'auto', 'car', or 'moto').
-
-### Example Response
-
-- `ride` (object):
-  - `user` (string): User ID.
-  - `pickup` (string): Pickup address.
-  - `destination` (string): Destination address.
-  - `fare` (number): Fare amount.
-  - `status` (string): Ride status.
-  - `duration` (number): Duration in seconds.
-  - `distance` (number): Distance in meters.
-  - `otp` (string): OTP for the ride.
-
-### Error Response
-
-- `400 Bad Request`: If any required field is missing or invalid.
-- `500 Internal Server Error`: If there is an error creating the ride.
-
-```json
-{
-  "message": "Error message"
-}
-```
-
-
-## `/rides/get-fare` Endpoint
-
-### Description
-
-Retrieves the fare estimate for a ride between the provided pickup and destination addresses.
-
-### HTTP Method
-
-`GET`
-
-### Authentication
-
-Requires a valid JWT token in the Authorization header:
-`Authorization:
-
- Bear
-
-er <token>`
-
-### Request Parameters
-
-- `pickup` (string, required): The pickup address (minimum 3 characters).
-- `destination` (string, required): The destination address (minimum 3 characters).
-
-### Example Request
-
-```
-GET /rides/get-fare?pickup=1600+Amphitheatre+Parkway,+Mountain+View,+CA&destination=1+Infinite+Loop,+Cupertino,+CA
-```
-
-### Example Response
-
-```json
-{
-  "auto": 50.0,
-  "car": 75.0,
-  "moto": 40.0
-}
-```
-
-### Error Response
-
-- `400 Bad Request`: If any required parameter is missing or invalid.
-- `500 Internal Server Error`: If there is an error calculating the fare.
-
-```json
-{
-  "message": "Error message"
-}
-```
+`duration` is in hours or days depending on the type (see the project README). `destination` is required for `outstation` and `airport`, and `tripType` for `outstation`. Bookings can start up to 60 days ahead.
+
+| Method | Path | Who | Transition / notes |
+|---|---|---|---|
+| GET | `/?scope=` | customer, driver | `scope`: `all`, `requests`, `upcoming`, `active`, `past`. |
+| GET | `/:id` | customer, driver | Own bookings only. |
+| POST | `/` | customer | Details + `driverId` → `requested`. Price is computed on the server. `409` if the driver is no longer available. |
+| POST | `/:id/cancel` | customer | `{ reason? }`; from requested/accepted/on the way/arrived → `cancelled`. |
+| POST | `/:id/review` | customer | `{ rating 1–5, comment? }`; `payment_completed` → `rating_completed`. |
+| POST | `/:id/accept` | driver | `requested` → `driver_accepted`; reserves the hours. `409` if they overlap another accepted booking (the request is then auto-rejected). |
+| POST | `/:id/reject` | driver | `{ reason? }` → `driver_rejected`. |
+| POST | `/:id/on-the-way` | driver | → `driver_on_the_way`. |
+| POST | `/:id/arrived` | driver | → `driver_arrived`. |
+| POST | `/:id/start` | driver | `{ otp }` (customer's start OTP) → `trip_started`. |
+| POST | `/:id/complete` | driver | `{ otp }` (customer's end OTP) → `trip_completed`; adds overtime; frees unused hours. |
+| POST | `/:id/payment-received` | driver | → `payment_completed`; updates the driver's earnings. |
+| POST | `/:id/driver-cancel` | driver | `{ reason? }`; from accepted/on the way/arrived → `cancelled`; counts toward the cancellation rate. |
+| POST | `/:id/review-customer` | driver | `{ rating 1–5, comment? }` after the trip. |
+
+Requests the driver does not answer within `BOOKING_REQUEST_TIMEOUT_MS` (or before the start time) become `expired`.
+
+What each side sees: the customer gets the start OTP while the driver is on the way and the end OTP during the trip; the driver never gets OTPs. Phone numbers are shared only from acceptance until the trip is completed.
+
+## Admin — `/admin` (admin)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/stats` | Customers, drivers, online drivers, pending verifications, today's bookings, booking value and commission. |
+| GET | `/drivers?verificationStatus=&accountStatus=&search=&page=` | 20 per page. |
+| GET | `/drivers/:id` | Full profile, `missingFields`, recent bookings. |
+| PATCH | `/drivers/:id/verification` | `{ status: under_review \| verified \| rejected, note? }`; a note is required to reject. |
+| PATCH | `/drivers/:id/account-status` | `{ accountStatus: active \| suspended }`. |
+| GET | `/customers?accountStatus=&search=&page=` | |
+| PATCH | `/customers/:id/account-status` | `{ accountStatus }`. |
+| GET | `/bookings?status=&page=` | With customer and driver contact details. |
+
+Create the first admin with `npm run create-admin -- <email> <password> [first name]`. Running it again for the same email resets that admin's password.
+
+## Socket events
+
+Connect with Socket.IO (`withCredentials: true`); the server authenticates from the login cookie (or `auth: { token }`).
+
+| Direction | Event | Payload |
+|---|---|---|
+| server → driver | `booking:request` | `{ message, booking }` for a new request |
+| server → both | `booking:updated` | `{ message, booking }` after every status change |
+| server → driver | `account:updated` | `{ message, verification }` after an admin decision |
+| driver → server | `driver:location` | `{ lat, lng }` |
+| server → client | `app:error` | `{ message }` |

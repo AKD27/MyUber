@@ -1,62 +1,74 @@
 const socketIo = require('socket.io');
-const userModel = require('./models/user.model');
-const captainModel = require('./models/captain.model');
+const cookie = require('cookie');
+const { clientUrl } = require('./config/env');
+const driverModel = require('./models/driver.model');
+const { authenticateToken } = require('./middlewares/auth.middleware');
 
 let io;
+
+const isInRange = (value, limit) => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit;
+
+const accountRoom = (role, id) => `${role}:${id}`;
 
 function initializeSocket(server) {
     io = socketIo(server, {
         cors: {
-            origin: '*',
-            methods: [ 'GET', 'POST' ]
+            origin: clientUrl,
+            credentials: true
+        }
+    });
+
+    // Authenticate during the handshake: browsers send the login cookie, other clients pass auth.token.
+    io.use(async (socket, next) => {
+        try {
+            const cookies = cookie.parse(socket.handshake.headers.cookie || '');
+            const auth = await authenticateToken(cookies.token || socket.handshake.auth?.token);
+
+            if (!auth || auth.account.accountStatus === 'suspended') {
+                return next(new Error('Unauthorized'));
+            }
+
+            socket.data.role = auth.role;
+            socket.data.accountId = auth.account._id.toString();
+            return next();
+        } catch (err) {
+            return next(err);
         }
     });
 
     io.on('connection', (socket) => {
-        console.log(`Client connected: ${socket.id}`);
+        const { role, accountId } = socket.data;
 
+        // Every connection of an account joins its room, so events reach all of its tabs.
+        socket.join(accountRoom(role, accountId));
 
-        socket.on('join', async (data) => {
-            const { userId, userType } = data;
-
-            if (userType === 'user') {
-                await userModel.findByIdAndUpdate(userId, { socketId: socket.id });
-            } else if (userType === 'captain') {
-                await captainModel.findByIdAndUpdate(userId, { socketId: socket.id });
-            }
-        });
-
-
-        socket.on('update-location-captain', async (data) => {
-            const { userId, location } = data;
-
-            if (!location || !location.ltd || !location.lng) {
-                return socket.emit('error', { message: 'Invalid location data' });
-            }
-
-            await captainModel.findByIdAndUpdate(userId, {
-                location: {
-                    ltd: location.ltd,
-                    lng: location.lng
+        socket.on('driver:location', async (data) => {
+            try {
+                if (role !== 'driver') {
+                    return socket.emit('app:error', { message: 'Only drivers can share their location' });
                 }
-            });
-        });
 
-        socket.on('disconnect', () => {
-            console.log(`Client disconnected: ${socket.id}`);
+                if (!isInRange(data?.lat, 90) || !isInRange(data?.lng, 180)) {
+                    return socket.emit('app:error', { message: 'Invalid location data' });
+                }
+
+                await driverModel.findByIdAndUpdate(accountId, {
+                    location: { type: 'Point', coordinates: [ data.lng, data.lat ] },
+                    locationUpdatedAt: new Date()
+                });
+            } catch (err) {
+                console.error('Driver location update failed', err);
+                socket.emit('app:error', { message: 'Unable to update location' });
+            }
         });
     });
 }
 
-const sendMessageToSocketId = (socketId, messageObject) => {
-
-console.log(messageObject);
-
-    if (io) {
-        io.to(socketId).emit(messageObject.event, messageObject.data);
-    } else {
-        console.log('Socket.io not initialized.');
+// Sends an event to every connected socket of one account.
+const emitToAccount = (role, id, event, data) => {
+    if (io && id) {
+        io.to(accountRoom(role, id.toString())).emit(event, data);
     }
 }
 
-module.exports = { initializeSocket, sendMessageToSocketId };
+module.exports = { initializeSocket, emitToAccount };

@@ -1,50 +1,16 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const accountPlugin = require('./shared/account.plugin');
+const { placeSchema } = require('./shared/schemas');
 
-
+// Customers and platform admins.
 const userSchema = new mongoose.Schema({
-    fullname: {
-        firstname: {
-            type: String,
-            required: true,
-            minlength: [ 3, 'First name must be at least 3 characters long' ],
-        },
-        lastname: {
-            type: String,
-            minlength: [ 3, 'Last name must be at least 3 characters long' ],
-        }
-    },
-    email: {
-        type: String,
-        required: true,
-        unique: true,
-        minlength: [ 5, 'Email must be at least 5 characters long' ],
-    },
-    password: {
-        type: String,
-        required: true,
-        select: false,
-    },
-    socketId: {
-        type: String,
-    },
-})
+    role: { type: String, enum: [ 'customer', 'admin' ], default: 'customer' },
+    savedLocations: [ new mongoose.Schema({
+        label: { type: String, required: true, trim: true, maxlength: 40 },
+        place: { type: placeSchema, required: true }
+    }) ]
+}, { timestamps: true });
 
-userSchema.methods.generateAuthToken = function () {
-    const token = jwt.sign({ _id: this._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
-    return token;
-}
+userSchema.plugin(accountPlugin);
 
-userSchema.methods.comparePassword = async function (password) {
-    return await bcrypt.compare(password, this.password);
-}
-
-userSchema.statics.hashPassword = async function (password) {
-    return await bcrypt.hash(password, 10);
-}
-
-const userModel = mongoose.model('user', userSchema);
-
-
-module.exports = userModel;
+module.exports = mongoose.model('user', userSchema);

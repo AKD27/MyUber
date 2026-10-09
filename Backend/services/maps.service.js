@@ -1,92 +1,61 @@
-const axios = require('axios');
-const captainModel = require('../models/captain.model');
+const httpError = require('../utils/httpError');
 
-module.exports.getAddressCoordinate = async (address) => {
-    const apiKey = process.env.GOOGLE_MAPS_API;
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+// MAPS_PROVIDER picks the geocoding/routing backend: 'google' (paid, needs GOOGLE_MAPS_API) or
+// 'osm' (free OpenStreetMap services, no key). Defaults to google only when a key is configured.
+const providerName = (process.env.MAPS_PROVIDER || (process.env.GOOGLE_MAPS_API ? 'google' : 'osm')).toLowerCase();
 
-    try {
-        const response = await axios.get(url);
-        if (response.data.status === 'OK') {
-            const location = response.data.results[ 0 ].geometry.location;
-            return {
-                ltd: location.lat,
-                lng: location.lng
-            };
-        } else {
-            throw new Error('Unable to fetch coordinates');
-        }
-    } catch (error) {
-        console.error(error);
-        throw error;
-    }
+const providers = {
+    google: () => require('./maps/google.provider'),
+    osm: () => require('./maps/osm.provider')
+};
+
+if (!providers[ providerName ]) {
+    throw new Error(`Unknown MAPS_PROVIDER "${providerName}", expected "google" or "osm"`);
 }
 
-module.exports.getDistanceTime = async (origin, destination) => {
-    if (!origin || !destination) {
-        throw new Error('Origin and destination are required');
+const provider = providers[ providerName ]();
+
+module.exports.providerName = providerName;
+
+module.exports.getAddressCoordinate = (address) => provider.getAddressCoordinate(address);
+
+module.exports.getDistanceTime = (origin, destination) => provider.getDistanceTime(origin, destination);
+
+// [{ label, lat?, lng? }]; coordinates are included when the provider returns them.
+module.exports.getSuggestions = (input) => provider.getAutoCompleteSuggestions(input);
+
+module.exports.reverseGeocode = (lat, lng) => provider.reverseGeocode(lat, lng);
+
+const toPoint = (lat, lng) => ({ type: 'Point', coordinates: [ lng, lat ] });
+
+module.exports.toPoint = toPoint;
+
+// Turns { address, lat?, lng? } into a stored place, geocoding the address when coordinates are missing.
+module.exports.resolvePlace = async ({ address, lat, lng }) => {
+    if (typeof lat === 'number' && typeof lng === 'number') {
+        return { address, location: toPoint(lat, lng) };
     }
 
-    const apiKey = process.env.GOOGLE_MAPS_API;
-
-    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&key=${apiKey}`;
-
     try {
-
-
-        const response = await axios.get(url);
-        if (response.data.status === 'OK') {
-
-            if (response.data.rows[ 0 ].elements[ 0 ].status === 'ZERO_RESULTS') {
-                throw new Error('No routes found');
-            }
-
-            return response.data.rows[ 0 ].elements[ 0 ];
-        } else {
-            throw new Error('Unable to fetch distance and time');
-        }
-
+        const coordinates = await provider.getAddressCoordinate(address);
+        return { address, location: toPoint(coordinates.ltd, coordinates.lng) };
     } catch (err) {
-        console.error(err);
-        throw err;
+        throw httpError(400, `Could not find the location "${address}". Pick an address from the suggestions.`);
     }
 }
 
-module.exports.getAutoCompleteSuggestions = async (input) => {
-    if (!input) {
-        throw new Error('query is required');
-    }
-
-    const apiKey = process.env.GOOGLE_MAPS_API;
-    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${apiKey}`;
+// Road distance/time between two stored places, or null if routing is unavailable (never blocks a booking).
+module.exports.estimateRoute = async (fromPlace, toPlace) => {
+    const point = (place) => ({ ltd: place.location.coordinates[ 1 ], lng: place.location.coordinates[ 0 ] });
 
     try {
-        const response = await axios.get(url);
-        if (response.data.status === 'OK') {
-            return response.data.predictions.map(prediction => prediction.description).filter(value => value);
-        } else {
-            throw new Error('Unable to fetch suggestions');
-        }
+        const route = await provider.getRoute(point(fromPlace), point(toPlace));
+        return {
+            distanceKm: Math.round(route.distance.value / 100) / 10,
+            durationMinutes: Math.round(route.duration.value / 60)
+        };
     } catch (err) {
-        console.error(err);
-        throw err;
+        console.error('Route estimate failed', err.message);
+        return null;
     }
-}
-
-module.exports.getCaptainsInTheRadius = async (ltd, lng, radius) => {
-
-    // radius in km
-
-
-    const captains = await captainModel.find({
-        location: {
-            $geoWithin: {
-                $centerSphere: [ [ ltd, lng ], radius / 6371 ]
-            }
-        }
-    });
-
-    return captains;
-
-
 }

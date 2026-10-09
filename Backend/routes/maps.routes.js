@@ -1,28 +1,18 @@
-const express = require('express');
-const router = express.Router();
-const authMiddleware = require('../middlewares/auth.middleware');
-const mapController = require('../controllers/map.controller');
-const { query } = require('express-validator');
+const router = require('express').Router();
+const asyncHandler = require('../utils/asyncHandler');
+const validate = require('../middlewares/validate.middleware');
+const { requireAuth } = require('../middlewares/auth.middleware');
+const mapsController = require('../controllers/maps.controller');
+const { z } = require('../validators/common');
 
-router.get('/get-coordinates',
-    query('address').isString().isLength({ min: 3 }),
-    authMiddleware.authUser,
-    mapController.getCoordinates
-);
+router.use(requireAuth());
 
-router.get('/get-distance-time',
-    query('origin').isString().isLength({ min: 3 }),
-    query('destination').isString().isLength({ min: 3 }),
-    authMiddleware.authUser,
-    mapController.getDistanceTime
-)
+router.get('/suggestions',
+    validate({ query: z.object({ input: z.string().trim().min(3, 'Type at least 3 characters').max(200) }) }),
+    asyncHandler(mapsController.getSuggestions));
 
-router.get('/get-suggestions',
-    query('input').isString().isLength({ min: 3 }),
-    authMiddleware.authUser,
-    mapController.getAutoCompleteSuggestions
-)
-
-
+router.get('/reverse',
+    validate({ query: z.object({ lat: z.coerce.number().min(-90).max(90), lng: z.coerce.number().min(-180).max(180) }) }),
+    asyncHandler(mapsController.reverseGeocode));
 
 module.exports = router;

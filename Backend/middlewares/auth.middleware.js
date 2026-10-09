@@ -1,63 +1,63 @@
-const userModel = require('../models/user.model');
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const blackListTokenModel = require('../models/blackListToken.model');
-const captainModel = require('../models/captain.model');
+const { jwtSecret } = require('../config/env');
+const userModel = require('../models/user.model');
+const driverModel = require('../models/driver.model');
+const blacklistTokenModel = require('../models/blacklistToken.model');
 
+const ROLE_MODELS = { customer: userModel, admin: userModel, driver: driverModel };
 
-module.exports.authUser = async (req, res, next) => {
-    const token = req.cookies.token || req.headers.authorization?.split(' ')[ 1 ];
+const modelForRole = (role) => ROLE_MODELS[ role ];
 
-    if (!token) {
-        return res.status(401).json({ message: 'Unauthorized' });
+// Browsers send the HTTP-only cookie; API clients may send a Bearer token instead.
+const getTokenFromRequest = (req) => req.cookies?.token || req.headers.authorization?.match(/^Bearer (.+)$/)?.[ 1 ];
+
+// Resolves a JWT to { role, account }, or null when it is missing, invalid, revoked or the account is gone.
+const authenticateToken = async (token) => {
+    if (!token || typeof token !== 'string') {
+        return null;
     }
 
-
-    const isBlacklisted = await blackListTokenModel.findOne({ token: token });
-
-    if (isBlacklisted) {
-        return res.status(401).json({ message: 'Unauthorized' });
-    }
-
+    let decoded;
     try {
+        decoded = jwt.verify(token, jwtSecret);
+    } catch (err) {
+        return null;
+    }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await userModel.findById(decoded._id)
+    const model = modelForRole(decoded.role);
 
-        req.user = user;
+    if (!model || await blacklistTokenModel.exists({ token })) {
+        return null;
+    }
 
+    const account = await model.findById(decoded._id);
+
+    // Customers and admins share a collection, so the stored role must match the token's.
+    if (!account || (account.role && account.role !== decoded.role)) {
+        return null;
+    }
+
+    return { role: decoded.role, account, token };
+}
+
+// Allows the request only for the given roles; attaches req.auth = { role, account, token }.
+const requireAuth = (...roles) => async (req, res, next) => {
+    try {
+        const auth = await authenticateToken(getTokenFromRequest(req));
+
+        if (!auth || (roles.length && !roles.includes(auth.role))) {
+            return res.status(401).json({ message: 'Please log in to continue' });
+        }
+
+        if (auth.account.accountStatus === 'suspended') {
+            return res.status(403).json({ message: 'Your account is suspended. Please contact support.' });
+        }
+
+        req.auth = auth;
         return next();
-
     } catch (err) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return next(err);
     }
 }
 
-module.exports.authCaptain = async (req, res, next) => {
-    const token = req.cookies.token || req.headers.authorization?.split(' ')[ 1 ];
-
-
-    if (!token) {
-        return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const isBlacklisted = await blackListTokenModel.findOne({ token: token });
-
-
-
-    if (isBlacklisted) {
-        return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const captain = await captainModel.findById(decoded._id)
-        req.captain = captain;
-
-        return next()
-    } catch (err) {
-        console.log(err);
-
-        res.status(401).json({ message: 'Unauthorized' });
-    }
-}
+module.exports = { modelForRole, getTokenFromRequest, authenticateToken, requireAuth };
