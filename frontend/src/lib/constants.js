@@ -1,10 +1,10 @@
 export const BOOKING_TYPES = {
-  hourly: { label: 'Hourly', icon: 'ri-time-fill', tint: 'bg-blue-100 text-blue-700', unit: 'hours', min: 2, max: 12, default: 4, hint: 'A few hours in the city' },
-  full_day: { label: 'Full Day', icon: 'ri-sun-fill', tint: 'bg-amber-100 text-amber-600', unit: 'hours', min: 8, max: 14, default: 8, hint: '8 hours, extra hours charged' },
-  outstation: { label: 'Outstation', icon: 'ri-road-map-fill', tint: 'bg-emerald-100 text-emerald-700', unit: 'days', min: 1, max: 15, default: 1, needsDestination: true, hint: 'Out-of-city trips' },
-  multi_day: { label: 'Multiple Days', icon: 'ri-calendar-2-fill', tint: 'bg-violet-100 text-violet-700', unit: 'days', min: 2, max: 30, default: 3, hint: 'A driver for several days' },
-  airport: { label: 'Airport', icon: 'ri-plane-fill', tint: 'bg-sky-100 text-sky-700', unit: 'hours', min: 2, max: 6, default: 3, needsDestination: true, hint: 'Pickups and drops' },
-  event: { label: 'Event / Wedding', icon: 'ri-cake-3-fill', tint: 'bg-rose-100 text-rose-600', unit: 'hours', min: 4, max: 14, default: 8, hint: 'Weddings and functions' },
+  hourly: { label: 'Hourly', icon: 'ri-time-fill', tint: 'bg-slate-100 text-slate-900', unit: 'hours', min: 2, max: 12, default: 4, hint: 'A few hours in the city' },
+  full_day: { label: 'Full Day', icon: 'ri-sun-fill', tint: 'bg-slate-100 text-slate-900', unit: 'hours', min: 8, max: 14, default: 8, hint: '8 hours, extra hours charged' },
+  outstation: { label: 'Outstation', icon: 'ri-road-map-fill', tint: 'bg-slate-100 text-slate-900', unit: 'days', min: 1, max: 15, default: 1, needsDestination: true, hint: 'Out-of-city trips' },
+  multi_day: { label: 'Multiple Days', icon: 'ri-calendar-2-fill', tint: 'bg-slate-100 text-slate-900', unit: 'days', min: 2, max: 30, default: 3, hint: 'A driver for several days' },
+  airport: { label: 'Airport', icon: 'ri-plane-fill', tint: 'bg-slate-100 text-slate-900', unit: 'hours', min: 2, max: 6, default: 3, needsDestination: true, hint: 'Pickups and drops' },
+  event: { label: 'Event / Wedding', icon: 'ri-cake-3-fill', tint: 'bg-slate-100 text-slate-900', unit: 'hours', min: 4, max: 14, default: 8, hint: 'Weddings and functions' },
 }
 
 export const CAR_TYPES = { hatchback: 'Hatchback', sedan: 'Sedan', suv: 'SUV', muv: 'MUV', luxury: 'Luxury' }

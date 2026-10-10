@@ -84,14 +84,6 @@ const SORTS = {
   experience: { label: 'Most experienced', compare: (a, b) => b.experienceYears - a.experienceYears },
 }
 
-function SectionLabel({ step, children }) {
-  return (
-    <p className='mb-3 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-slate-500'>
-      <span className='flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] text-white'>{step}</span>{children}
-    </p>
-  )
-}
-
 // A booking the customer already has running, so they can jump straight back to it.
 function CurrentBooking() {
   const { data } = useQuery({
@@ -241,93 +233,88 @@ export default function BookDriver() {
         {!request && (
           <div>
             <CurrentBooking />
-            <h1 className='text-[26px] font-extrabold leading-tight text-slate-900'>Where do you need a driver?</h1>
-            <p className='mb-5 mt-1 text-sm text-slate-500'>A verified driver comes to you and drives your own car.</p>
-          <form className='space-y-6' onSubmit={handleSubmit(onSubmit)} noValidate>
-            <section>
-              <SectionLabel step={1}>What do you need?</SectionLabel>
-              <div className='grid grid-cols-3 gap-2'>
+            <h1 className='text-2xl font-extrabold text-slate-950'>Get a driver for your car</h1>
+          <form className='mt-4 space-y-5' onSubmit={handleSubmit(onSubmit)} noValidate>
+            {/* Trip type: one scrolling row */}
+            <div>
+              <div className='scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 lg:-mx-5 lg:px-5' role='radiogroup' aria-label='Trip type'>
                 {Object.entries(BOOKING_TYPES).map(([key, t]) => (
-                  <button key={key} type='button' onClick={() => chooseType(key)} aria-pressed={bookingType === key}
-                    className={cx('group flex flex-col items-center gap-2 rounded-2xl px-1.5 py-3 text-center text-xs font-semibold ring-1 ring-inset transition duration-200 active:scale-95',
-                      bookingType === key ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50')}>
-                    <span className={cx('flex h-10 w-10 items-center justify-center rounded-xl text-xl transition-transform duration-200 group-hover:scale-110', bookingType === key ? 'scale-110 bg-white/15 text-white' : t.tint)}><Icon name={t.icon} /></span>{t.label}
+                  <button key={key} type='button' role='radio' aria-checked={bookingType === key} onClick={() => chooseType(key)}
+                    className={cx('flex w-[88px] shrink-0 flex-col items-center gap-2 rounded-xl px-1 pb-2.5 pt-3.5 text-center text-xs font-semibold leading-tight transition duration-150 active:scale-95',
+                      bookingType === key ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-800 hover:bg-slate-200')}>
+                    <Icon name={t.icon} className='text-[22px]' />{t.label}
                   </button>
                 ))}
               </div>
-              <p className='mt-2 text-xs text-slate-500'>{type.hint}</p>
+              <p className='mt-2.5 text-[13px] text-slate-500'>{type.hint}</p>
 
               {bookingType === 'outstation' && (
                 <Controller control={control} name='tripType' render={({ field }) => (
-                  <div className='mt-3 grid grid-cols-2 gap-2' role='radiogroup' aria-label='Trip'>
+                  <div className='mt-3 flex rounded-lg bg-slate-100 p-1' role='radiogroup' aria-label='Trip'>
                     {[['round_trip', 'Round trip', 'ri-repeat-line'], ['one_way', 'One way', 'ri-arrow-right-line']].map(([value, label, icon]) => (
                       <button key={value} type='button' role='radio' aria-checked={field.value === value} onClick={() => field.onChange(value)}
-                        className={cx('flex h-10 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold ring-1 ring-inset transition',
-                          field.value === value ? 'bg-brand-50 text-brand-800 ring-brand-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50')}>
+                        className={cx('flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md text-sm font-semibold transition', field.value === value ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500')}>
                         <Icon name={icon} />{label}
                       </button>
                     ))}
                   </div>
                 )} />
               )}
-            </section>
+            </div>
 
-            <section className='space-y-3'>
-              <SectionLabel step={2}>Where?</SectionLabel>
-              <Field label='Pickup location' error={errors.pickup?.message}>
+            {/* Pickup and destination as one block, joined by a line */}
+            <div>
+              <div className='relative rounded-xl bg-slate-100'>
+                {showDestination && <span aria-hidden='true' className='absolute bottom-[26px] left-[22px] top-[26px] w-0.5 bg-slate-900' />}
                 <Controller control={control} name='pickup' render={({ field }) => (
-                  <AddressInput id='pickup' value={field.value} onChange={field.onChange} placeholder='Where should the driver come?' savedLocations={savedLocations} allowCurrentLocation
-                    icon='ri-record-circle-fill' iconClass='text-emerald-600' invalid={Boolean(errors.pickup)} />
+                  <AddressInput plain id='pickup' value={field.value} onChange={field.onChange} placeholder='Pickup location' savedLocations={savedLocations} allowCurrentLocation
+                    icon='ri-record-circle-fill' iconClass='relative text-slate-950 text-sm' invalid={Boolean(errors.pickup)} />
                 )} />
-              </Field>
-
-              {showDestination && (
-                <Field label='Destination' optional={!type.needsDestination} error={errors.destination?.message}>
-                  <Controller control={control} name='destination' render={({ field }) => (
-                    <AddressInput id='destination' value={field.value} onChange={field.onChange} placeholder={bookingType === 'airport' ? 'Airport or drop location' : 'Where are you going?'} savedLocations={savedLocations}
-                      icon='ri-stop-fill' iconClass='text-slate-900' invalid={Boolean(errors.destination)} />
-                  )} />
-                </Field>
-              )}
-            </section>
-
-            <section>
-              <SectionLabel step={3}>When?</SectionLabel>
-              <div className='grid grid-cols-2 gap-3'>
-                <Field label='Date' error={errors.date?.message}><Input type='date' min={todayInput()} max={maxDate} aria-invalid={Boolean(errors.date)} {...register('date')} /></Field>
-                <Field label='Start time' error={errors.time?.message}><Input type='time' step={900} aria-invalid={Boolean(errors.time)} {...register('time')} /></Field>
+                {showDestination && (
+                  <>
+                    <div className='ml-[50px] border-t border-slate-300' />
+                    <Controller control={control} name='destination' render={({ field }) => (
+                      <AddressInput plain id='destination' value={field.value} onChange={field.onChange} placeholder={bookingType === 'airport' ? 'Airport or drop location' : type.needsDestination ? 'Where to?' : 'Where to? (optional)'} savedLocations={savedLocations}
+                        icon='ri-stop-fill' iconClass='relative text-slate-950 text-sm' invalid={Boolean(errors.destination)} />
+                    )} />
+                  </>
+                )}
               </div>
-              <Field label='Duration' className='mt-3' error={errors.duration?.message}>
+              {(errors.pickup || errors.destination) && <p role='alert' className='mt-1.5 text-xs font-medium text-red-600'>{errors.pickup?.message || errors.destination?.message}</p>}
+            </div>
+
+            {/* When and how long */}
+            <div className='grid grid-cols-2 gap-2'>
+              <Field label='Date' error={errors.date?.message}><Input type='date' min={todayInput()} max={maxDate} aria-invalid={Boolean(errors.date)} {...register('date')} /></Field>
+              <Field label='Start time' error={errors.time?.message}><Input type='time' step={900} aria-invalid={Boolean(errors.time)} {...register('time')} /></Field>
+              <Field label='Duration' className='col-span-2' error={errors.duration?.message}>
                 <Select {...register('duration')}>
                   {durations.map((value) => <option key={value} value={value}>{durationLabel({ value, unit: type.unit })}</option>)}
                 </Select>
               </Field>
-            </section>
+            </div>
 
-            <section>
-              <SectionLabel step={4}>Your car</SectionLabel>
-              <div className='scrollbar-none -mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5' role='radiogroup' aria-label='Car type'>
+            {/* The car */}
+            <div>
+              <p className='mb-2 text-[13px] font-medium text-slate-600'>Your car</p>
+              <div className='scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 lg:-mx-5 lg:px-5' role='radiogroup' aria-label='Car type'>
                 {Object.entries(CAR_TYPES).map(([key, label]) => (
                   <Chip key={key} selected={vehicleType === key} onClick={() => setValue('vehicleType', key)}>{label}</Chip>
                 ))}
               </div>
-              <div className='mt-3 grid grid-cols-[auto_1fr] gap-3'>
-                <div className='flex rounded-xl bg-slate-100 p-1' role='radiogroup' aria-label='Gears'>
+              <div className='mt-2 grid grid-cols-[auto_1fr] gap-2'>
+                <div className='flex rounded-lg bg-slate-100 p-1' role='radiogroup' aria-label='Gears'>
                   {Object.entries(TRANSMISSIONS).map(([key, label]) => (
                     <button key={key} type='button' role='radio' aria-checked={transmission === key} onClick={() => setValue('transmission', key)}
-                      className={cx('rounded-lg px-3 text-[13px] font-semibold transition', transmission === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500')}>{label}</button>
+                      className={cx('rounded-md px-3 text-[13px] font-semibold transition', transmission === key ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500')}>{label}</button>
                   ))}
                 </div>
                 <Input placeholder='Model, e.g. Toyota Fortuner' aria-label='Car model' maxLength={60} {...register('model')} />
               </div>
-              <Field label='Notes for the driver' optional className='mt-3'>
-                <Textarea placeholder='Luggage, elderly passengers, stops on the way…' maxLength={500} className='min-h-[72px]' {...register('notes')} />
-              </Field>
-            </section>
+              <Textarea placeholder='Notes for the driver (optional): luggage, elderly passengers, stops…' aria-label='Notes for the driver' maxLength={500} className='mt-2 min-h-[64px]' {...register('notes')} />
+            </div>
 
-            <Button type='submit' size='lg' className='w-full' loading={search.isPending}>
-              <Icon name='ri-search-line' /> Find available drivers
-            </Button>
+            <Button type='submit' size='lg' className='w-full' loading={search.isPending}>Find drivers</Button>
           </form>
           </div>
         )}

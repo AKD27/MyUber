@@ -1,4 +1,5 @@
 import defaultTheme from 'tailwindcss/defaultTheme'
+import colors from 'tailwindcss/colors'
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -9,13 +10,15 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // From the project's design system (design-system/driver-on-demand/MASTER.md):
-        // Source Sans 3 for reading, Lexend for headings and numbers.
-        sans: ['"Source Sans 3 Variable"', ...defaultTheme.fontFamily.sans],
-        display: ['"Lexend Variable"', ...defaultTheme.fontFamily.sans],
+        // One neutral typeface for everything; hierarchy comes from size and weight.
+        sans: ['"Inter Variable"', ...defaultTheme.fontFamily.sans],
+        display: ['"Inter Variable"', ...defaultTheme.fontFamily.sans],
       },
       colors: {
-        // The accent: the "route blue" of the design system, readable on white at 600 and darker.
+        // The interface is black, white and true greys: every "slate" in the code resolves to a
+        // neutral grey with no blue tint.
+        slate: colors.neutral,
+        // The single accent, used sparingly: links, live states and focus.
         brand: {
           50: '#eff6ff',
           100: '#dbeafe',
@@ -30,10 +33,17 @@ export default {
           950: '#172554',
         },
       },
+      // Tighter corners than Tailwind's defaults: crisp rather than bubbly.
+      borderRadius: {
+        lg: '0.5rem',
+        xl: '0.625rem',
+        '2xl': '0.75rem',
+        '3xl': '1rem',
+      },
       boxShadow: {
-        card: '0 1px 2px rgb(15 23 42 / 0.04), 0 2px 8px rgb(15 23 42 / 0.04)',
-        lift: '0 2px 4px rgb(15 23 42 / 0.04), 0 12px 32px rgb(15 23 42 / 0.10)',
-        sheet: '0 -8px 32px rgb(15 23 42 / 0.12)',
+        card: '0 0 0 1px rgb(0 0 0 / 0.03), 0 1px 2px rgb(0 0 0 / 0.04)',
+        lift: '0 0 0 1px rgb(0 0 0 / 0.04), 0 8px 28px -6px rgb(0 0 0 / 0.14)',
+        sheet: '0 -1px 0 rgb(0 0 0 / 0.05), 0 -12px 40px -8px rgb(0 0 0 / 0.18)',
       },
       keyframes: {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },

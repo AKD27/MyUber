@@ -3,7 +3,12 @@ import L from 'leaflet'
 import { MapContainer, TileLayer, Marker, Polyline, ZoomControl, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
-const ICONS = { pickup: 'ri-map-pin-user-fill', destination: 'ri-flag-2-fill', driver: 'ri-steering-2-fill' }
+// Plain shapes, as on ride-hailing maps: a dot for the pickup, a square for the destination, an arrow for the driver.
+const GLYPHS = {
+  pickup: '<circle cx="12" cy="12" r="5"/>',
+  destination: '<rect x="7.5" y="7.5" width="9" height="9" rx="1.5"/>',
+  driver: '<path d="M12 4l6.5 15.5L12 16.2 5.5 19.5z"/>',
+}
 
 const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
@@ -12,7 +17,7 @@ const markerIcon = (kind, label) => L.divIcon({
   className: kind === 'driver' ? 'marker-glide' : '',
   iconSize: [36, 36],
   iconAnchor: [18, 18],
-  html: `<div class="map-marker map-marker--${kind}"><span class="map-marker__pin"><i class="${ICONS[kind] || ICONS.pickup}"></i></span>${label ? `<span class="map-marker__label">${escapeHtml(label)}</span>` : ''}</div>`,
+  html: `<div class="map-marker map-marker--${kind}"><span class="map-marker__pin"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">${GLYPHS[kind] || GLYPHS.pickup}</svg></span>${label ? `<span class="map-marker__label">${escapeHtml(label)}</span>` : ''}</div>`,
 })
 
 // Roughly 100 m: the view is refitted when something moves further than this.
@@ -62,8 +67,8 @@ export default function LeafletMap({ points, path, center, overlaid }) {
       />
       {path?.length > 1 && (
         <>
-          <Polyline positions={path} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }} />
-          <Polyline positions={path} pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }} />
+          <Polyline positions={path} pathOptions={{ color: '#ffffff', weight: 9, opacity: 1, lineCap: 'round', lineJoin: 'round' }} />
+          <Polyline positions={path} pathOptions={{ color: '#0a0a0a', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }} />
           <Polyline positions={path} pathOptions={{ color: '#ffffff', weight: 2, opacity: 0.9, dashArray: '2 18', lineCap: 'round', className: 'route-flow' }} />
         </>
       )}

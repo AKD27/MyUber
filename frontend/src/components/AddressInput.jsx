@@ -4,7 +4,7 @@ import { Icon } from './ui'
 import { cx } from '../lib/cx'
 
 // Address field with suggestions, saved places and "use my location". Value: { address, lat?, lng? }.
-export default function AddressInput({ value, onChange, placeholder, savedLocations = [], allowCurrentLocation = false, id, icon = 'ri-map-pin-line', iconClass = 'text-slate-400', invalid }) {
+export default function AddressInput({ value, onChange, placeholder, savedLocations = [], allowCurrentLocation = false, id, icon = 'ri-map-pin-line', iconClass = 'text-slate-400', invalid, plain }) {
   const listId = useId()
   const [text, setText] = useState(value?.address || '')
   const [suggestions, setSuggestions] = useState([])
@@ -120,7 +120,9 @@ export default function AddressInput({ value, onChange, placeholder, savedLocati
 
   return (
     <div ref={root} className='relative'>
-      <div className={cx('flex h-11 items-center gap-2 rounded-xl border bg-white pl-3 pr-1 shadow-sm transition focus-within:border-brand-600 focus-within:ring-4 focus-within:ring-brand-600/10', invalid ? 'border-red-400' : 'border-slate-200 hover:border-slate-300')}>
+      <div className={plain
+        ? 'flex h-[52px] items-center gap-3.5 pl-4 pr-1.5'
+        : cx('flex h-12 items-center gap-2.5 rounded-lg border-2 bg-slate-100 pl-3.5 pr-1 transition focus-within:border-slate-900 focus-within:bg-white', invalid ? 'border-red-500' : 'border-transparent')}>
         <Icon name={icon} className={cx('text-lg', iconClass)} />
         <input
           id={id}
@@ -132,7 +134,7 @@ export default function AddressInput({ value, onChange, placeholder, savedLocati
           aria-controls={listId}
           aria-autocomplete='list'
           aria-invalid={invalid || undefined}
-          className='h-full min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:ring-0'
+          className='h-full min-w-0 flex-1 bg-transparent text-[15px] font-medium text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-500 focus-visible:ring-0'
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           onChange={(e) => {
@@ -151,14 +153,14 @@ export default function AddressInput({ value, onChange, placeholder, savedLocati
         )}
         {allowCurrentLocation && (
           <button type='button' onClick={useMyLocation} disabled={busy} title='Use my current location' aria-label='Use my current location'
-            className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg text-brand-700 hover:bg-brand-50'>
+            className='flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-lg text-slate-900 shadow-sm hover:bg-slate-50'>
             <Icon name={busy ? 'ri-loader-4-line animate-spin' : 'ri-focus-3-line'} />
           </button>
         )}
       </div>
       {note && <p className='mt-1.5 text-xs font-medium text-amber-700'>{note}</p>}
       {expanded && (
-        <ul id={listId} role='listbox' className='absolute z-[600] mt-1.5 max-h-72 w-full animate-pop-in overflow-y-auto rounded-xl border border-slate-200 bg-white py-1.5 shadow-lift'>
+        <ul id={listId} role='listbox' className='absolute left-0 z-[600] mt-2 max-h-72 w-full animate-pop-in overflow-y-auto rounded-xl bg-white py-1.5 shadow-lift'>
           {options.map((option, index) => (
             <li key={option.key} role='option' aria-selected={index === active}>
               <button type='button' tabIndex={-1} onMouseDown={(e) => e.preventDefault()} onMouseEnter={() => setActive(index)} onClick={() => pick(option.place)}

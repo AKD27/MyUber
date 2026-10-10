@@ -1,25 +1,34 @@
 import { forwardRef, useEffect, useId, useRef } from 'react'
 import { STATUS, VERIFICATION } from '../lib/constants'
+import { ICONS, SOLID, FALLBACK_ICON } from '../lib/icons'
 import { cx } from '../lib/cx'
 
-export function Icon({ name, className }) {
-  return <i aria-hidden='true' className={cx(name, className)} />
+// An icon sized by the surrounding text (use text-* classes). `name` is an icon key such as
+// 'ri-search-line'; anything after a space is treated as extra classes ('ri-loader-4-line animate-spin').
+export function Icon({ name = '', className }) {
+  const [id, ...extra] = name.split(' ')
+  const Glyph = ICONS[id.replace(/^ri-/, '').replace(/-(line|fill)$/, '')] || FALLBACK_ICON
+  return (
+    <Glyph aria-hidden='true' size='1em' strokeWidth={id.endsWith('-fill') ? 2.25 : 1.75} fill={SOLID.has(id) ? 'currentColor' : 'none'}
+      className={cx('inline-block shrink-0 align-[-0.125em]', extra.join(' '), className)} />
+  )
 }
 
 const BUTTON_STYLES = {
-  primary: 'bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:bg-slate-950 disabled:bg-slate-300 disabled:text-white',
-  brand: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800 disabled:bg-brand-600/40',
-  secondary: 'bg-white text-slate-800 ring-1 ring-inset ring-slate-200 hover:bg-slate-50 active:bg-slate-100 disabled:text-slate-400',
-  soft: 'bg-brand-50 text-brand-800 hover:bg-brand-100 active:bg-brand-200 disabled:opacity-50',
+  primary: 'bg-slate-950 text-white hover:bg-slate-800 active:bg-black disabled:bg-slate-300 disabled:text-white',
+  // The main action on a screen: solid black, like `primary`. Kept as its own name so one change can re-colour every main action.
+  brand: 'bg-slate-950 text-white hover:bg-slate-800 active:bg-black disabled:bg-slate-300',
+  secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300 disabled:text-slate-400',
+  soft: 'bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300 disabled:opacity-50',
   danger: 'bg-red-600 text-white shadow-sm hover:bg-red-700 active:bg-red-800 disabled:bg-red-600/40',
   'danger-soft': 'bg-red-50 text-red-700 hover:bg-red-100 active:bg-red-200 disabled:opacity-50',
   ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50',
 }
 
 const BUTTON_SIZES = {
-  sm: 'h-9 gap-1.5 rounded-lg px-3 text-[13px]',
-  md: 'h-11 gap-2 rounded-xl px-4 text-sm',
-  lg: 'h-12 gap-2 rounded-xl px-5 text-[15px]',
+  sm: 'h-9 gap-1.5 rounded-lg px-3.5 text-[13px]',
+  md: 'h-11 gap-2 rounded-lg px-4 text-sm',
+  lg: 'h-[52px] gap-2 rounded-lg px-6 text-base',
 }
 
 export const buttonClass = ({ variant = 'primary', size = 'md', className } = {}) =>
@@ -49,7 +58,7 @@ export function Field({ label, error, hint, children, className, optional, group
   return (
     <Tag {...(group ? { role: 'group', 'aria-label': label } : {})} className={cx('block', className)}>
       {label && (
-        <span className='mb-1.5 flex items-baseline justify-between text-[13px] font-semibold text-slate-700'>
+        <span className='mb-1.5 flex items-baseline justify-between text-[13px] font-medium text-slate-600'>
           {label}
           {optional && <span className='font-normal text-slate-400'>Optional</span>}
         </span>
@@ -61,7 +70,8 @@ export function Field({ label, error, hint, children, className, optional, group
   )
 }
 
-const inputBase = 'h-11 rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-600 focus:ring-4 focus:ring-brand-600/10 disabled:bg-slate-100 disabled:text-slate-500 aria-[invalid=true]:border-red-400'
+// Filled fields that turn white with a black outline when focused.
+const inputBase = 'h-12 rounded-lg border-2 border-transparent bg-slate-100 px-3.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-500 hover:bg-slate-200/70 focus:border-slate-900 focus:bg-white focus-visible:ring-0 disabled:text-slate-500 aria-[invalid=true]:border-red-500'
 
 // Full width unless the caller sets a width (w-full would otherwise win over it in Tailwind's CSS order).
 const inputClass = (className) => cx(inputBase, !/(^|\s)w-/.test(className || '') && 'w-full', className)
@@ -79,7 +89,7 @@ export const Textarea = forwardRef(function Textarea({ className, ...props }, re
 })
 
 export function Card({ className, children, padded = true, ...props }) {
-  return <div {...props} className={cx('rounded-2xl border border-slate-200/80 bg-white shadow-card transition-shadow duration-200', padded && 'p-4 sm:p-5', className)}>{children}</div>
+  return <div {...props} className={cx('rounded-2xl border border-slate-200 bg-white transition-shadow duration-200', padded && 'p-4 sm:p-5', className)}>{children}</div>
 }
 
 export function SectionTitle({ children, action, className }) {
@@ -148,11 +158,10 @@ export function ListSkeleton({ count = 3 }) {
 
 export function EmptyState({ icon = 'ri-inbox-line', title, children, action, visual }) {
   return (
-    <div className='animate-enter flex flex-col items-center rounded-2xl border border-dashed border-slate-300 bg-white/60 px-6 py-10 text-center'>
+    <div className='animate-enter flex flex-col items-center rounded-2xl bg-slate-50 px-6 py-12 text-center'>
       {visual || (
-        <span className='animate-float relative mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-brand-50 to-brand-100 text-3xl text-brand-600 shadow-card'>
+        <span className='mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-2xl text-slate-900'>
           <Icon name={icon} />
-          <span className='absolute -right-1.5 -top-1.5 h-4 w-4 rounded-full bg-amber-300 ring-4 ring-white' />
         </span>
       )}
       <p className='font-bold text-slate-900'>{title}</p>
@@ -192,7 +201,7 @@ export function PageHeader({ title, subtitle, action, back }) {
     <div className='mb-6 flex flex-wrap items-end justify-between gap-3'>
       <div className='min-w-0'>
         {back}
-        <h1 className='text-2xl font-extrabold tracking-tight text-slate-900 sm:text-[28px]'>{title}</h1>
+        <h1 className='text-[28px] font-extrabold leading-tight text-slate-950 sm:text-[32px]'>{title}</h1>
         {subtitle && <p className='mt-1 text-sm text-slate-500'>{subtitle}</p>}
       </div>
       {action}
@@ -212,10 +221,10 @@ export function Stars({ value = 0, count, size = 'text-sm' }) {
 
 export function Tabs({ tabs, value, onChange, className }) {
   return (
-    <div role='tablist' className={cx('scrollbar-none mb-5 flex gap-1 overflow-x-auto rounded-xl bg-slate-200/60 p-1', className)}>
+    <div role='tablist' className={cx('scrollbar-none mb-5 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1', className)}>
       {tabs.map((tab) => (
         <button key={tab.value} type='button' role='tab' aria-selected={value === tab.value} onClick={() => onChange(tab.value)}
-          className={cx('flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-semibold transition',
+          className={cx('flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3.5 py-2 text-sm font-semibold transition',
             value === tab.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900', 'duration-200 active:scale-[0.97]')}>
           {tab.icon && <Icon name={tab.icon} />}
           {tab.label}
@@ -240,7 +249,7 @@ export function Chip({ selected, onClick, icon, children, className }) {
   return (
     <button type='button' aria-pressed={selected} onClick={onClick}
       className={cx('inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[13px] font-semibold ring-1 ring-inset transition',
-        selected ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50', className)}>
+        selected ? 'bg-slate-950 text-white ring-slate-950' : 'bg-slate-100 text-slate-800 ring-transparent hover:bg-slate-200', className)}>
       {icon && <Icon name={icon} />}
       {children}
     </button>
@@ -248,12 +257,13 @@ export function Chip({ selected, onClick, icon, children, className }) {
 }
 
 export function StatTile({ icon, label, value, hint, tone = 'slate', className }) {
-  const tones = { slate: 'bg-slate-100 text-slate-700', brand: 'bg-brand-50 text-brand-700', amber: 'bg-amber-50 text-amber-700', blue: 'bg-blue-50 text-blue-700', red: 'bg-red-50 text-red-700' }
+  // One quiet style for every tile; only red is kept, for things that need attention.
+  const tones = { red: 'bg-red-50 text-red-700' }
   return (
     <Card className={cx('h-full', className)}>
       <div className='flex items-start justify-between gap-2'>
         <p className='text-[13px] font-medium text-slate-500'>{label}</p>
-        {icon && <span className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg', tones[tone])}><Icon name={icon} /></span>}
+        {icon && <span className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg', tones[tone] || 'bg-slate-100 text-slate-700')}><Icon name={icon} /></span>}
       </div>
       <p className='tabular mt-1 text-2xl font-extrabold tracking-tight text-slate-900'>{value}</p>
       {hint && <p className='mt-0.5 text-xs text-slate-500'>{hint}</p>}

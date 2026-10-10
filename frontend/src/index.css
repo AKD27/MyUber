@@ -9,7 +9,9 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-white text-slate-900 antialiased;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    letter-spacing: -0.006em;
   }
 
   /* Headings and anything set in heavy weight use the display face. */
@@ -57,11 +59,10 @@
 }
 
 @layer utilities {
-  /* Lexend is wide and dark: its bold already reads as the heaviest weight. */
+  /* Headlines: bold with tight tracking, as large text needs. */
   .font-extrabold {
-    font-family: theme(fontFamily.display);
     font-weight: 700;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.03em;
   }
 
   .pb-safe {
@@ -92,7 +93,13 @@
 
 .leaflet-container {
   font-family: inherit;
-  background: #e8eef1;
+  background: #f2f2f2;
+}
+
+/* The free test map is drawn in many colours; mute it to quiet greys so the route, the pins and
+   the panel are what the eye goes to. (Google Maps in production is styled the same way.) */
+.leaflet-tile-pane {
+  filter: grayscale(1) brightness(1.04) contrast(0.92);
 }
 
 .leaflet-control-attribution {
@@ -113,7 +120,7 @@
 }
 
 .map-marker__pin {
-  @apply flex h-9 w-9 items-center justify-center rounded-full border-[3px] border-white text-base text-white shadow-lift;
+  @apply flex h-9 w-9 items-center justify-center rounded-full border-[3px] border-white text-base text-white shadow-[0_4px_14px_rgb(0_0_0/0.3)];
 }
 
 .map-marker__label {
@@ -121,7 +128,7 @@
 }
 
 .map-marker--pickup .map-marker__pin {
-  @apply bg-emerald-600;
+  @apply bg-slate-900;
 }
 
 .map-marker--destination .map-marker__pin {

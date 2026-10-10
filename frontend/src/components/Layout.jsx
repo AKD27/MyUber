@@ -35,8 +35,8 @@ const NAV = {
 export function Logo({ to = '/', light = false }) {
   return (
     <Link to={to} className={cx('flex shrink-0 items-center gap-2 rounded-lg text-base font-extrabold tracking-tight sm:gap-2.5 sm:text-[17px]', light ? 'text-white' : 'text-slate-900')}>
-      <span className='flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-lg text-brand-400 ring-1 ring-white/10'><Icon name='ri-steering-2-fill' /></span>
-      <span className='max-[340px]:hidden'>Driver<span className={light ? 'text-brand-400' : 'text-brand-600'}>OnDemand</span></span>
+      <span className={cx('flex h-8 w-8 items-center justify-center rounded-lg text-[17px]', light ? 'bg-white text-slate-950' : 'bg-slate-950 text-white')}><Icon name='ri-steering-2-fill' /></span>
+      <span className='max-[340px]:hidden'>Driver on Demand</span>
     </Link>
   )
 }
@@ -97,11 +97,11 @@ function AppShell({ role, links, onLogout }) {
   const account = useAuth((state) => state.account)
   const { pathname } = useLocation()
   const desktopLink = ({ isActive }) => cx('flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors',
-    isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900')
+    isActive ? 'bg-slate-100 text-slate-950' : 'text-slate-500 hover:text-slate-950')
 
   return (
     <div className='min-h-dvh bg-slate-50'>
-      <header className='sticky top-0 z-[500] border-b border-slate-200/80 bg-white/90 backdrop-blur-md'>
+      <header className='sticky top-0 z-[500] border-b border-slate-200 bg-white'>
         <div className='mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4'>
           <Logo to={homeFor(role, account)} />
           <nav aria-label='Main' className='hidden items-center gap-1 lg:flex'>
@@ -125,8 +125,8 @@ function AppShell({ role, links, onLogout }) {
         <div className='mx-auto flex max-w-md'>
           {links.filter((link) => link.tab).map((link) => (
             <NavLink key={link.to} to={link.to} end={link.end}
-              className={({ isActive }) => cx('flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', isActive ? 'text-brand-700' : 'text-slate-500', 'active:scale-95')}>
-              {({ isActive }) => (<><span className={cx('flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-200', isActive && 'bg-brand-100')}><Icon name={isActive ? link.activeIcon : link.icon} className='text-[22px] leading-none' /></span>{link.label}</>)}
+              className={({ isActive }) => cx('relative flex flex-1 flex-col items-center gap-1 pb-2 pt-2.5 text-[11px] transition-colors active:scale-95', isActive ? 'font-bold text-slate-900' : 'font-medium text-slate-400')}>
+              {({ isActive }) => (<><span aria-hidden='true' className={cx('absolute top-0 h-0.5 w-8 rounded-full bg-slate-900 transition-opacity duration-200', isActive ? 'opacity-100' : 'opacity-0')} /><Icon name={isActive ? link.activeIcon : link.icon} className='text-2xl' />{link.label}</>)}
             </NavLink>
           ))}
         </div>
