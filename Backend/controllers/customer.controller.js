@@ -5,10 +5,11 @@ const MAX_SAVED_LOCATIONS = 10;
 
 module.exports.updateProfile = async (req, res) => {
     const customer = req.auth.account;
-    const { fullname, phone } = req.validated.body;
+    const { fullname, phone, emergencyContact } = req.validated.body;
 
     if (fullname) customer.fullname = fullname;
     if (phone) customer.phone = phone;
+    if (emergencyContact !== undefined) customer.emergencyContact = emergencyContact || undefined;
     await customer.save();
 
     return res.status(200).json({ account: customer });

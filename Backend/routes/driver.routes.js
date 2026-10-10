@@ -6,6 +6,7 @@ const driverController = require('../controllers/driver.controller');
 const { idParams } = require('../validators/common');
 const schemas = require('../validators/driver.validators');
 const { searchDriversSchema } = require('../validators/booking.validators');
+const { receivePhoto } = require('../services/upload.service');
 
 const driverOnly = requireAuth('driver');
 const customerOnly = requireAuth('customer');
@@ -17,6 +18,9 @@ router.post('/me/submit-verification', driverOnly, asyncHandler(driverController
 router.patch('/me/availability', driverOnly, validate({ body: schemas.availabilitySchema }), asyncHandler(driverController.setAvailability));
 router.patch('/me/location', driverOnly, validate({ body: schemas.locationSchema }), asyncHandler(driverController.updateLocation));
 router.get('/me/dashboard', driverOnly, asyncHandler(driverController.getDashboard));
+router.post('/me/photo', driverOnly, receivePhoto, asyncHandler(driverController.uploadPhoto));
+router.get('/me/earnings', driverOnly, asyncHandler(driverController.getEarnings));
+router.get('/me/reviews', driverOnly, asyncHandler(driverController.getReviews));
 
 // Customers finding and viewing drivers
 router.post('/search', customerOnly, validate({ body: searchDriversSchema }), asyncHandler(driverController.searchDrivers));

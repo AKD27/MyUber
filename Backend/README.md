@@ -92,7 +92,7 @@ Search only returns drivers who are verified, active and online; within both `SE
 | POST | `/:id/driver-cancel` | driver | `{ reason? }`; from accepted/on the way/arrived → `cancelled`; counts toward the cancellation rate. |
 | POST | `/:id/review-customer` | driver | `{ rating 1–5, comment? }` after the trip. |
 
-Requests the driver does not answer within `BOOKING_REQUEST_TIMEOUT_MS` (or before the start time) become `expired`.
+Requests the driver does not answer within `BOOKING_REQUEST_TIMEOUT_MS` become `expired`. Accepted bookings whose whole time window passes without the trip starting are cancelled automatically.
 
 What each side sees: the customer gets the start OTP while the driver is on the way and the end OTP during the trip; the driver never gets OTPs. Phone numbers are shared only from acceptance until the trip is completed.
 

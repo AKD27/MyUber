@@ -1,4 +1,6 @@
 const bookingService = require('../services/booking.service');
+const trackingService = require('../services/tracking.service');
+const { clientUrl } = require('../config/env');
 
 const { toCustomerView, toDriverView } = bookingService;
 
@@ -49,4 +51,20 @@ module.exports.list = async (req, res) => {
 
 module.exports.get = async (req, res) => {
     return res.status(200).json(await bookingService.getBooking(req.auth.role, accountOf(req)._id, idOf(req)));
+}
+
+// Safety
+module.exports.share = async (req, res) => {
+    const token = await trackingService.createShareToken(accountOf(req), idOf(req));
+    return res.status(200).json({ token, url: `${clientUrl}/track/${token}` });
+}
+
+module.exports.sos = async (req, res) => {
+    const alert = await trackingService.raiseSos(req.auth.role, accountOf(req), idOf(req), req.validated.body);
+    return res.status(201).json({ _id: alert._id, status: alert.status, createdAt: alert.createdAt });
+}
+
+// Public: the read-only view behind a shared trip link.
+module.exports.sharedTrip = async (req, res) => {
+    return res.status(200).json(await trackingService.getSharedTrip(req.validated.params.token));
 }

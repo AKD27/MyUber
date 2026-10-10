@@ -5,11 +5,16 @@ const { requireAuth } = require('../middlewares/auth.middleware');
 const bookingController = require('../controllers/booking.controller');
 const { idParams } = require('../validators/common');
 const schemas = require('../validators/booking.validators');
+const { sosSchema, shareTokenParams } = require('../validators/support.validators');
+const { publicLimiter } = require('../middlewares/rateLimit.middleware');
 
 const customerOnly = requireAuth('customer');
 const driverOnly = requireAuth('driver');
 const either = requireAuth('customer', 'driver');
 const withId = (body) => validate(body ? { params: idParams, body } : { params: idParams });
+
+// Public, read-only view of a trip for people the customer shared the link with.
+router.get('/shared/:token', publicLimiter, validate({ params: shareTokenParams }), asyncHandler(bookingController.sharedTrip));
 
 router.get('/', either, validate({ query: schemas.listBookingsSchema }), asyncHandler(bookingController.list));
 router.get('/:id', either, withId(), asyncHandler(bookingController.get));
@@ -17,6 +22,9 @@ router.get('/:id', either, withId(), asyncHandler(bookingController.get));
 router.post('/', customerOnly, validate({ body: schemas.createBookingSchema }), asyncHandler(bookingController.create));
 router.post('/:id/cancel', customerOnly, withId(schemas.cancelSchema), asyncHandler(bookingController.cancelByCustomer));
 router.post('/:id/review', customerOnly, withId(schemas.reviewSchema), asyncHandler(bookingController.reviewDriver));
+
+router.post('/:id/share', customerOnly, withId(), asyncHandler(bookingController.share));
+router.post('/:id/sos', either, withId(sosSchema), asyncHandler(bookingController.sos));
 
 router.post('/:id/accept', driverOnly, withId(), asyncHandler(bookingController.accept));
 router.post('/:id/reject', driverOnly, withId(schemas.rejectSchema), asyncHandler(bookingController.reject));

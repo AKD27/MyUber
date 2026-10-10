@@ -56,7 +56,7 @@ const bookingSchema = new mongoose.Schema({
     requestExpiresAt: Date,
     rejectionReason: { type: String, trim: true },
     cancellation: {
-        by: { type: String, enum: [ 'customer', 'driver', 'admin' ] },
+        by: { type: String, enum: [ 'customer', 'driver', 'admin', 'system' ] },
         reason: { type: String, trim: true }
     },
 
@@ -66,6 +66,9 @@ const bookingSchema = new mongoose.Schema({
     otpAttempts: { type: Number, default: 0, select: false },
     otpLockedUntil: { type: Date },
 
+    // Lets the customer share a read-only live view of the trip with family or friends.
+    shareToken: { type: String, select: false },
+
     tripStartedAt: Date,
     tripCompletedAt: Date,
 
@@ -74,12 +77,14 @@ const bookingSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 bookingSchema.index({ driver: 1, status: 1, startTime: 1 });
+bookingSchema.index({ shareToken: 1 }, { unique: true, sparse: true });
 
 bookingSchema.set('toJSON', {
     transform: (doc, ret) => {
         delete ret.__v;
         delete ret.otpAttempts;
         delete ret.otpLockedUntil;
+        delete ret.shareToken;
         return ret;
     }
 });

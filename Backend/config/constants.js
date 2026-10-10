@@ -38,6 +38,16 @@ const ACTIVE_BOOKING_STATUSES = [
     BOOKING_STATUS.TRIP_STARTED
 ];
 
+// Statuses during which the customer can follow the driver on the map.
+const TRACKING_STATUSES = [
+    BOOKING_STATUS.DRIVER_ON_THE_WAY,
+    BOOKING_STATUS.DRIVER_ARRIVED,
+    BOOKING_STATUS.TRIP_STARTED
+];
+
+const COMPLAINT_CATEGORIES = [ 'driver_behaviour', 'customer_behaviour', 'payment', 'safety', 'late_or_no_show', 'vehicle_damage', 'app_issue', 'other' ];
+const COMPLAINT_STATUS = [ 'open', 'in_review', 'resolved' ];
+
 const DRIVER_VERIFICATION = {
     PENDING: 'pending',
     UNDER_REVIEW: 'under_review',
@@ -55,6 +65,9 @@ module.exports = {
     TRANSMISSIONS,
     BOOKING_STATUS,
     ACTIVE_BOOKING_STATUSES,
+    TRACKING_STATUSES,
+    COMPLAINT_CATEGORIES,
+    COMPLAINT_STATUS,
     DRIVER_VERIFICATION,
     ACCOUNT_STATUS
 };

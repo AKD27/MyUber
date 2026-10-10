@@ -43,15 +43,7 @@ const reserveSlots = async (booking) => {
     }
 }
 
-// Frees reserved hours: all of them, or only those from `fromTime` on (e.g. a trip that ended early).
-const releaseSlots = (bookingId, fromTime) => {
-    const filter = { booking: bookingId };
-
-    if (fromTime) {
-        filter.hour = { $gte: new Date(Math.ceil(fromTime.getTime() / HOUR_MS) * HOUR_MS) };
-    }
-
-    return driverSlotModel.deleteMany(filter);
-}
+// Frees every hour reserved for a booking.
+const releaseSlots = (bookingId) => driverSlotModel.deleteMany({ booking: bookingId });
 
 module.exports = { endOfBooking, hoursCovered, busyDriverIds, reserveSlots, releaseSlots };

@@ -1,7 +1,6 @@
 const socketIo = require('socket.io');
 const cookie = require('cookie');
 const { clientUrl } = require('./config/env');
-const driverModel = require('./models/driver.model');
 const { authenticateToken } = require('./middlewares/auth.middleware');
 
 let io;
@@ -9,6 +8,7 @@ let io;
 const isInRange = (value, limit) => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit;
 
 const accountRoom = (role, id) => `${role}:${id}`;
+const ADMIN_ROOM = 'admins';
 
 function initializeSocket(server) {
     io = socketIo(server, {
@@ -41,6 +41,7 @@ function initializeSocket(server) {
 
         // Every connection of an account joins its room, so events reach all of its tabs.
         socket.join(accountRoom(role, accountId));
+        if (role === 'admin') socket.join(ADMIN_ROOM);
 
         socket.on('driver:location', async (data) => {
             try {
@@ -52,10 +53,8 @@ function initializeSocket(server) {
                     return socket.emit('app:error', { message: 'Invalid location data' });
                 }
 
-                await driverModel.findByIdAndUpdate(accountId, {
-                    location: { type: 'Point', coordinates: [ data.lng, data.lat ] },
-                    locationUpdatedAt: new Date()
-                });
+                // Required here because the tracking service itself needs this module.
+                await require('./services/tracking.service').recordDriverLocation(accountId, data.lat, data.lng);
             } catch (err) {
                 console.error('Driver location update failed', err);
                 socket.emit('app:error', { message: 'Unable to update location' });
@@ -71,4 +70,11 @@ const emitToAccount = (role, id, event, data) => {
     }
 }
 
-module.exports = { initializeSocket, emitToAccount };
+// Sends an event to every connected admin.
+const emitToAdmins = (event, data) => {
+    if (io) {
+        io.to(ADMIN_ROOM).emit(event, data);
+    }
+}
+
+module.exports = { initializeSocket, emitToAccount, emitToAdmins };

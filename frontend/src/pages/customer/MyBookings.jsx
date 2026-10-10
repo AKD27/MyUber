@@ -2,14 +2,20 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api, errorMessage } from '../../lib/api'
-import { rupees, dateTime, bookingTypeLabel, durationLabel } from '../../lib/format'
-import { Card, EmptyState, ErrorNote, PageHeader, Spinner, StatusBadge, Tabs } from '../../components/ui'
+import { BookingCard } from '../../components/BookingParts'
+import { buttonClass, EmptyState, ErrorNote, Icon, ListSkeleton, PageHeader, Tabs } from '../../components/ui'
 
 const TABS = [
   { value: 'upcoming', label: 'Upcoming' },
   { value: 'active', label: 'Ongoing' },
   { value: 'past', label: 'Past' },
 ]
+
+const EMPTY = {
+  upcoming: ['ri-calendar-line', 'No upcoming bookings', 'Bookings you make appear here until the trip starts.'],
+  active: ['ri-road-map-line', 'No trip in progress', 'A trip shows here from the moment it starts until it is paid for.'],
+  past: ['ri-history-line', 'No past bookings yet', 'Completed and cancelled bookings are kept here.'],
+}
 
 export default function MyBookings() {
   const [scope, setScope] = useState('upcoming')
@@ -18,32 +24,18 @@ export default function MyBookings() {
     queryFn: () => api.get('/bookings', { params: { scope } }).then((res) => res.data),
   })
 
+  const bookLink = <Link to='/book' className={buttonClass({ variant: 'brand' })}><Icon name='ri-add-line' />Book a driver</Link>
+  const [icon, title, text] = EMPTY[scope]
+
   return (
-    <div>
-      <PageHeader title='My bookings' action={<Link to='/book' className='rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800'>Book a driver</Link>} />
+    <div className='mx-auto max-w-3xl'>
+      <PageHeader title='My bookings' action={<span className='max-sm:hidden'>{bookLink}</span>} />
       <Tabs tabs={TABS} value={scope} onChange={setScope} />
-      {isLoading && <Spinner />}
+      {isLoading && <ListSkeleton />}
       <ErrorNote>{error && errorMessage(error)}</ErrorNote>
-      {data?.length === 0 && <EmptyState title='No bookings here yet' />}
+      {data?.length === 0 && <EmptyState icon={icon} title={title} action={scope !== 'active' && bookLink}>{text}</EmptyState>}
       <div className='space-y-3'>
-        {data?.map((booking) => (
-          <Link key={booking._id} to={`/bookings/${booking._id}`} className='block'>
-            <Card className='hover:border-teal-600'>
-              <div className='flex flex-wrap items-start justify-between gap-2'>
-                <div>
-                  <p className='font-semibold'>{bookingTypeLabel(booking)} · {durationLabel(booking.duration)}</p>
-                  <p className='text-sm text-gray-600'>{dateTime(booking.startTime)}</p>
-                </div>
-                <StatusBadge status={booking.status} />
-              </div>
-              <p className='mt-2 truncate text-sm text-gray-700'><i aria-hidden='true' className='ri-map-pin-user-line text-gray-400' /> {booking.pickup.address}</p>
-              <div className='mt-2 flex justify-between text-sm'>
-                <span className='text-gray-600'>Driver: {booking.driver.fullname.firstname}</span>
-                <span className='font-semibold'>{rupees(booking.pricing.driverCharges)}</span>
-              </div>
-            </Card>
-          </Link>
-        ))}
+        {data?.map((booking) => <BookingCard key={booking._id} booking={booking} to={`/bookings/${booking._id}`} perspective='customer' />)}
       </div>
     </div>
   )

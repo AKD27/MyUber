@@ -3,7 +3,7 @@ const { port, bookingRequestTimeoutMs } = require('./config/env');
 const app = require('./app');
 const connectToDb = require('./db/db');
 const { initializeSocket } = require('./socket');
-const { expireStaleRequests } = require('./services/booking.service');
+const { expireStaleRequests, closeMissedBookings } = require('./services/booking.service');
 
 // Often enough that a request expires close to its deadline.
 const EXPIRY_SWEEP_MS = Math.min(15 * 1000, Math.max(1000, bookingRequestTimeoutMs / 3));
@@ -21,6 +21,7 @@ connectToDb()
         // Expire booking requests drivers did not answer in time.
         setInterval(() => {
             expireStaleRequests().catch(err => console.error('Expiring booking requests failed', err));
+            closeMissedBookings().catch(err => console.error('Closing missed bookings failed', err));
         }, EXPIRY_SWEEP_MS).unref();
     })
     .catch(err => {

@@ -88,3 +88,54 @@ module.exports.reverseGeocode = async (lat, lng) => {
 
 // Driving distance and duration between two { ltd, lng } points.
 module.exports.getRoute = (from, to) => module.exports.getDistanceTime(`${from.ltd},${from.lng}`, `${to.ltd},${to.lng}`);
+
+// Decodes Google's encoded polyline format into [ lat, lng ] pairs.
+const decodePolyline = (encoded) => {
+    const path = [];
+    let index = 0, lat = 0, lng = 0;
+
+    const nextValue = () => {
+        let result = 0, shift = 0, byte;
+        do {
+            byte = encoded.charCodeAt(index++) - 63;
+            result |= (byte & 0x1f) << shift;
+            shift += 5;
+        } while (byte >= 0x20);
+        return (result & 1) ? ~(result >> 1) : (result >> 1);
+    };
+
+    while (index < encoded.length) {
+        lat += nextValue();
+        lng += nextValue();
+        path.push([ lat / 1e5, lng / 1e5 ]);
+    }
+
+    return path;
+}
+
+module.exports.decodePolyline = decodePolyline;
+
+// Driving route between two { ltd, lng } points with the line to draw on a map (Directions API).
+module.exports.getRoutePath = async (from, to) => {
+    const response = await axios.get('https://maps.googleapis.com/maps/api/directions/json', {
+        params: {
+            origin: `${from.ltd},${from.lng}`,
+            destination: `${to.ltd},${to.lng}`,
+            mode: 'driving',
+            key: process.env.GOOGLE_MAPS_API
+        }
+    });
+
+    const route = response.data?.routes?.[ 0 ];
+    const leg = route?.legs?.[ 0 ];
+
+    if (response.data?.status !== 'OK' || !leg) {
+        throw new Error('No routes found');
+    }
+
+    return {
+        distance: { value: leg.distance.value },
+        duration: { value: leg.duration.value },
+        path: decodePolyline(route.overview_polyline.points)
+    };
+}

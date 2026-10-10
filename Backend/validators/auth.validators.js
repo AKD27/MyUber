@@ -23,7 +23,9 @@ module.exports.resetPasswordSchema = z.object({
 
 module.exports.updateCustomerSchema = z.object({
     fullname: fullname.optional(),
-    phone: phone.optional()
+    phone: phone.optional(),
+    // Who to call from the SOS screen; null removes the contact.
+    emergencyContact: z.object({ name: z.string().trim().min(2, 'Enter the contact\'s name').max(60), phone }).nullable().optional()
 }).refine(data => Object.keys(data).length > 0, 'Nothing to update');
 
 module.exports.savedLocationSchema = z.object({

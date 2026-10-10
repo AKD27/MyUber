@@ -2,6 +2,7 @@ const { z, phone, fullname, placeInput } = require('./common');
 const { BOOKING_TYPES, CAR_TYPES, TRANSMISSIONS } = require('../config/constants');
 
 const rate = z.number().int().min(50, 'Rates must be at least ₹50').max(100000);
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter a time as HH:mm');
 
 module.exports.updateDriverProfileSchema = z.object({
     fullname: fullname.optional(),
@@ -19,6 +20,12 @@ module.exports.updateDriverProfileSchema = z.object({
         outstationPerDay: rate.optional()
     }).optional(),
     serviceRadiusKm: z.number().int().min(1).max(100).optional(),
+    workingHours: z.object({
+        enabled: z.boolean(),
+        days: z.array(z.number().int().min(0).max(6)).min(1, 'Choose at least one working day').max(7),
+        start: clockTime,
+        end: clockTime
+    }).refine(hours => hours.start < hours.end, { path: [ 'end' ], message: 'Working hours must end after they start' }).optional(),
     address: z.string().trim().min(5).max(300).optional(),
     licence: z.object({
         number: z.string().trim().min(5, 'Enter a valid licence number').max(30),

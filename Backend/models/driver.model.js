@@ -18,6 +18,13 @@ const driverSchema = new mongoose.Schema({
         outstationPerDay: { type: Number, min: 0 }
     },
     serviceRadiusKm: { type: Number, min: 1, max: 100, default: 15 },
+    // When enabled, the driver is only offered bookings that start on these days between these times.
+    workingHours: {
+        enabled: { type: Boolean, default: false },
+        days: { type: [ Number ], default: [ 0, 1, 2, 3, 4, 5, 6 ] },
+        start: { type: String, default: '06:00' },
+        end: { type: String, default: '22:00' }
+    },
 
     // Onboarding details, visible to admins only
     address: { type: String, trim: true },

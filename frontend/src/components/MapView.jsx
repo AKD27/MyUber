@@ -1,44 +1,33 @@
-import { useEffect } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
+import { lazy, Suspense } from 'react'
+import { cx } from '../lib/cx'
 
-const COLORS = { pickup: '#0f766e', destination: '#111827', driver: '#2563eb' }
+// VITE_MAPS_PROVIDER picks the map: 'osm' (free OpenStreetMap tiles, for testing) or 'google'
+// (needs VITE_GOOGLE_MAPS_KEY). Both draw the same props, so pages do not care which one is used.
+const useGoogle = import.meta.env.VITE_MAPS_PROVIDER === 'google' && Boolean(import.meta.env.VITE_GOOGLE_MAPS_KEY)
 
-function FitBounds({ points }) {
-  const map = useMap()
-  const key = points.map((p) => `${p.lat},${p.lng}`).join('|')
+const Provider = lazy(() => (useGoogle ? import('./maps/GoogleMap') : import('./maps/LeafletMap')))
 
-  useEffect(() => {
-    if (points.length === 1) map.setView([points[0].lat, points[0].lng], 14)
-    else if (points.length > 1) map.fitBounds(points.map((p) => [p.lat, p.lng]), { padding: [30, 30] })
-    // Refit only when the points change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, key])
+const isPoint = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lng)
 
-  return null
-}
-
-// A small OpenStreetMap map with labelled markers: [{ lat, lng, label, kind }].
-export default function MapView({ points, className = 'h-56' }) {
-  const valid = points.filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number')
-  if (!valid.length) return null
+// A map with markers ([{ lat, lng, label, kind: 'pickup' | 'destination' | 'driver' }]) and an optional
+// route line (path: [[lat, lng], …]). Shows `placeholder` until there is something to show.
+// With `fill` the map has no frame and leaves room for the panel a MapShell lays over it;
+// `center` is what it shows before there is any marker.
+export default function MapView({ points = [], path, className = 'h-64', placeholder, fill, center }) {
+  const valid = points.filter(isPoint)
 
   return (
-    // z-0 keeps Leaflet's internal z-indexes below the app's menus and dialogs.
-    <div className={`relative z-0 overflow-hidden rounded-xl border border-gray-200 ${className}`}>
-      <MapContainer center={[valid[0].lat, valid[0].lng]} zoom={13} scrollWheelZoom={false} className='h-full w-full'>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-        />
-        {valid.map((point) => (
-          <CircleMarker key={`${point.kind}-${point.lat}-${point.lng}`} center={[point.lat, point.lng]} radius={9}
-            pathOptions={{ color: '#fff', weight: 3, fillColor: COLORS[point.kind] || COLORS.pickup, fillOpacity: 1 }}>
-            <Tooltip permanent direction='top' offset={[0, -8]}>{point.label}</Tooltip>
-          </CircleMarker>
-        ))}
-        <FitBounds points={valid} />
-      </MapContainer>
+    // isolate keeps the map's internal z-indexes below the app's menus and dialogs.
+    <div className={cx('relative isolate overflow-hidden bg-slate-100', fill ? 'h-full' : cx('rounded-2xl border border-slate-200/80', className))}>
+      {valid.length === 0 && !center ? (
+        <div className='flex h-full flex-col items-center justify-center gap-2 bg-[radial-gradient(circle_at_1px_1px,theme(colors.slate.300)_1px,transparent_0)] bg-[length:20px_20px] p-6 text-center text-sm text-slate-500'>
+          {placeholder}
+        </div>
+      ) : (
+        <Suspense fallback={<div className='h-full animate-pulse bg-slate-200/70' />}>
+          <Provider points={valid} path={path} center={center} overlaid={fill} />
+        </Suspense>
+      )}
     </div>
   )
 }

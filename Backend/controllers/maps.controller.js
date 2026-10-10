@@ -20,3 +20,20 @@ module.exports.reverseGeocode = async (req, res) => {
         throw httpError(502, 'Could not find an address for your location');
     }
 }
+
+module.exports.geocode = async (req, res) => {
+    const place = await mapService.resolvePlace({ address: req.validated.query.address });
+    const [ lng, lat ] = place.location.coordinates;
+    return res.status(200).json({ address: place.address, lat, lng });
+}
+
+module.exports.getRoute = async (req, res) => {
+    const { fromLat, fromLng, toLat, toLng } = req.validated.query;
+
+    try {
+        return res.status(200).json(await mapService.getRoutePath({ lat: fromLat, lng: fromLng }, { lat: toLat, lng: toLng }));
+    } catch (err) {
+        console.error('Route lookup failed', err.message);
+        throw httpError(502, 'Could not find a route between these places');
+    }
+}

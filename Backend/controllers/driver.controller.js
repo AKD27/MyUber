@@ -1,5 +1,7 @@
 const driverService = require('../services/driver.service');
 const bookingService = require('../services/booking.service');
+const earningsService = require('../services/earnings.service');
+const trackingService = require('../services/tracking.service');
 
 const withProfileStatus = (driver) => ({
     account: driver,
@@ -26,14 +28,11 @@ module.exports.setAvailability = async (req, res) => {
 }
 
 module.exports.updateLocation = async (req, res) => {
-    const driver = req.auth.account;
     const { lat, lng } = req.validated.body;
 
-    driver.location = { type: 'Point', coordinates: [ lng, lat ] };
-    driver.locationUpdatedAt = new Date();
-    await driver.save();
+    await trackingService.recordDriverLocation(req.auth.account._id, lat, lng);
 
-    return res.status(200).json({ location: driver.location });
+    return res.status(200).json({ location: { type: 'Point', coordinates: [ lng, lat ] } });
 }
 
 module.exports.getDashboard = async (req, res) => {
@@ -46,4 +45,17 @@ module.exports.searchDrivers = async (req, res) => {
 
 module.exports.getPublicProfile = async (req, res) => {
     return res.status(200).json(await driverService.getPublicProfile(req.validated.params.id));
+}
+
+module.exports.uploadPhoto = async (req, res) => {
+    const driver = await driverService.updatePhoto(req.auth.account, req.file);
+    return res.status(200).json(withProfileStatus(driver));
+}
+
+module.exports.getEarnings = async (req, res) => {
+    return res.status(200).json(await earningsService.getDriverEarnings(req.auth.account));
+}
+
+module.exports.getReviews = async (req, res) => {
+    return res.status(200).json(await earningsService.getDriverReviews(req.auth.account));
 }

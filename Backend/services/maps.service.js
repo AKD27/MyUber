@@ -59,3 +59,14 @@ module.exports.estimateRoute = async (fromPlace, toPlace) => {
         return null;
     }
 }
+
+// Road route between two { lat, lng } points, with the line to draw on the map.
+module.exports.getRoutePath = async (from, to) => {
+    const route = await provider.getRoutePath({ ltd: from.lat, lng: from.lng }, { ltd: to.lat, lng: to.lng });
+
+    return {
+        distanceKm: Math.round(route.distance.value / 100) / 10,
+        durationMinutes: Math.max(1, Math.round(route.duration.value / 60)),
+        path: route.path
+    };
+}

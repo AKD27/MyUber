@@ -21,6 +21,10 @@ module.exports = {
     jwtSecret: process.env.JWT_SECRET,
     // The frontend origin, allowed by CORS with credentials (cookies).
     clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+    // Public address of this API, used in links to uploaded photos.
+    publicUrl: (process.env.PUBLIC_URL || `http://localhost:${number('PORT', 4000)}`).replace(/\/$/, ''),
+    // Time zone in which drivers' working hours and daily totals are read.
+    appTimezone: process.env.APP_TIMEZONE || 'Asia/Kolkata',
 
     commissionPercent: number('COMMISSION_PERCENT', 10),
     // How long a driver has to accept or reject a booking request.

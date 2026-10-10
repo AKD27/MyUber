@@ -7,7 +7,7 @@ export function RequireRole({ role, children }) {
   const { status, role: currentRole, account } = useAuth()
   const location = useLocation()
 
-  if (status === 'loading') return <Spinner />
+  if (status === 'loading') return <Spinner className='min-h-dvh' />
   if (status !== 'authenticated') return <Navigate to='/login' replace state={{ from: location.pathname }} />
   if (currentRole !== role) return <Navigate to={homeFor(currentRole, account)} replace />
   return children
@@ -19,7 +19,7 @@ export function GuestOnly({ children }) {
   const { status, role, account } = useAuth()
   const location = useLocation()
 
-  if (status === 'loading') return <Spinner />
+  if (status === 'loading') return <Spinner className='min-h-dvh' />
   if (status === 'authenticated') return <Navigate to={location.state?.from || homeFor(role, account)} replace />
   return children
 }

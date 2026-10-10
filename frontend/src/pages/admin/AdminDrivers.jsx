@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, errorMessage } from '../../lib/api'
-import { BOOKING_TYPES, CAR_TYPES, TRANSMISSIONS } from '../../lib/constants'
+import { BOOKING_TYPES, CAR_TYPES, TRANSMISSIONS, WEEKDAYS } from '../../lib/constants'
 import { rupees, shortDate, fullName } from '../../lib/format'
 import { toast } from '../../store/toast'
-import Pagination from './Pagination'
-import { Badge, Button, Card, EmptyState, ErrorNote, Field, Input, Modal, PageHeader, Spinner, Stars, StatusBadge, Tabs, VerificationBadge } from '../../components/ui'
+import Avatar from '../../components/Avatar'
+import Pagination, { SearchBox } from './Pagination'
+import { Badge, Button, Detail, EmptyState, ErrorNote, Field, Modal, Note, PageHeader, Spinner, Stars, StatusBadge, Table, Tabs, Textarea, VerificationBadge } from '../../components/ui'
 
 const TABS = [
   { value: 'under_review', label: 'Waiting for review' },
@@ -18,9 +19,8 @@ const TABS = [
 
 export default function AdminDrivers() {
   const [params, setParams] = useSearchParams()
-  const status = params.get('status') || 'under_review'
+  const status = TABS.some((tab) => tab.value === params.get('status')) ? params.get('status') : 'under_review'
   const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(null)
 
@@ -32,45 +32,38 @@ export default function AdminDrivers() {
   return (
     <div>
       <PageHeader title='Drivers' subtitle='Verify new drivers and manage existing ones.' />
-      <Tabs tabs={TABS} value={status} onChange={(value) => { setParams({ status: value }); setPage(1) }} />
-      <form className='mb-4 flex gap-2' onSubmit={(e) => { e.preventDefault(); setQuery(search); setPage(1) }}>
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder='Search name, email or phone' className='max-w-sm' />
-        <Button type='submit' variant='secondary'>Search</Button>
-      </form>
+      <Tabs tabs={TABS} value={status} onChange={(value) => { setParams({ status: value }); setPage(1) }} className='lg:inline-flex' />
+      <SearchBox onSearch={(text) => { setQuery(text); setPage(1) }} />
       {isLoading && <Spinner />}
       <ErrorNote>{error && errorMessage(error)}</ErrorNote>
-      {data?.items.length === 0 && <EmptyState title='No drivers here' />}
-      <div className='overflow-x-auto rounded-xl border border-gray-200 bg-white'>
-        {data?.items.length > 0 && (
-          <table className='w-full text-left text-sm'>
-            <thead className='bg-gray-50 text-xs uppercase text-gray-500'>
-              <tr><th className='px-4 py-3'>Driver</th><th className='px-4 py-3'>Phone</th><th className='px-4 py-3'>Status</th><th className='px-4 py-3'>Rating</th><th className='px-4 py-3'>Trips</th><th className='px-4 py-3'>Joined</th><th /></tr>
-            </thead>
-            <tbody className='divide-y divide-gray-100'>
-              {data.items.map((driver) => (
-                <tr key={driver._id}>
-                  <td className='px-4 py-3'><p className='font-medium'>{fullName(driver)}</p><p className='text-xs text-gray-500'>{driver.email}</p></td>
-                  <td className='px-4 py-3'>{driver.phone}</td>
-                  <td className='px-4 py-3'><div className='flex flex-wrap gap-1'><VerificationBadge status={driver.verification.status} />{driver.accountStatus === 'suspended' && <Badge tone='red'>Suspended</Badge>}{driver.isOnline && <Badge tone='green'>Online</Badge>}</div></td>
-                  <td className='px-4 py-3'><Stars value={driver.rating.average} count={driver.rating.count} /></td>
-                  <td className='px-4 py-3'>{driver.stats.completedTrips}</td>
-                  <td className='px-4 py-3'>{shortDate(driver.createdAt)}</td>
-                  <td className='px-4 py-3 text-right'><Button variant='secondary' onClick={() => setSelected(driver._id)}>Review</Button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {data?.items.length === 0 && <EmptyState icon='ri-steering-2-line' title='No drivers here'>{query ? 'Nothing matches this search.' : 'Drivers in this state will appear here.'}</EmptyState>}
+      {data?.items.length > 0 && (
+        <Table head={['Driver', 'Phone', 'Status', 'Rating', 'Trips', 'Joined', '']}>
+          {data.items.map((driver) => (
+            <tr key={driver._id} className='hover:bg-slate-50/60'>
+              <td className='px-4 py-3'>
+                <div className='flex items-center gap-3'>
+                  <Avatar person={driver} size='h-9 w-9' className='text-xs' />
+                  <div className='min-w-0'><p className='truncate font-semibold text-slate-900'>{fullName(driver)}</p><p className='truncate text-xs text-slate-500'>{driver.email}</p></div>
+                </div>
+              </td>
+              <td className='tabular whitespace-nowrap px-4 py-3'>{driver.phone}</td>
+              <td className='px-4 py-3'><div className='flex flex-wrap gap-1'><VerificationBadge status={driver.verification.status} />{driver.accountStatus === 'suspended' && <Badge tone='red'>Suspended</Badge>}{driver.isOnline && <Badge dot tone='green'>Online</Badge>}</div></td>
+              <td className='px-4 py-3'><Stars value={driver.rating.average} count={driver.rating.count} /></td>
+              <td className='tabular px-4 py-3'>{driver.stats.completedTrips}</td>
+              <td className='whitespace-nowrap px-4 py-3 text-slate-500'>{shortDate(driver.createdAt)}</td>
+              <td className='px-4 py-3 text-right'><Button variant='secondary' size='sm' onClick={() => setSelected(driver._id)}>{driver.verification.status === 'under_review' ? 'Review' : 'View'}</Button></td>
+            </tr>
+          ))}
+        </Table>
+      )}
       <Pagination data={data} page={page} onChange={setPage} />
       <DriverReview driverId={selected} onClose={() => setSelected(null)} />
     </div>
   )
 }
 
-function Detail({ label, children }) {
-  return <div><p className='text-xs text-gray-500'>{label}</p><div className='text-sm'>{children || <span className='text-gray-400'>Not provided</span>}</div></div>
-}
+const workingHours = (hours) => (hours?.enabled ? `${hours.days.map((day) => WEEKDAYS[day]).join(', ')} · ${hours.start}–${hours.end}` : 'Any time')
 
 function DriverReview({ driverId, onClose }) {
   const queryClient = useQueryClient()
@@ -93,58 +86,88 @@ function DriverReview({ driverId, onClose }) {
     },
   })
 
+  const close = () => { setNote(''); update.reset(); onClose() }
   const driver = data?.driver
+  const pending = (key) => update.isPending && update.variables?.key === key
+  const act = (key, path, body, message) => update.mutate({ key, path, body, message })
 
   return (
-    <Modal open={Boolean(driverId)} onClose={onClose} title='Driver details'>
+    <Modal open={Boolean(driverId)} onClose={close} title='Driver details' size='lg'>
       {isLoading && <Spinner />}
       <ErrorNote>{error && errorMessage(error)}</ErrorNote>
       {driver && (
-        <div className='space-y-4'>
-          <div className='flex flex-wrap items-center justify-between gap-2'>
-            <div><p className='text-lg font-bold'>{fullName(driver)}</p><p className='text-sm text-gray-500'>{driver.email} · {driver.phone}</p></div>
-            <VerificationBadge status={driver.verification.status} />
+        <div className='space-y-5'>
+          <div className='flex flex-wrap items-center gap-4'>
+            <Avatar person={driver} size='h-16 w-16' className='text-xl' />
+            <div className='min-w-0 flex-1'>
+              <p className='text-lg font-extrabold text-slate-900'>{fullName(driver)}</p>
+              <p className='truncate text-sm text-slate-500'>{driver.email} · {driver.phone}</p>
+            </div>
+            <div className='flex flex-wrap gap-1'>
+              <VerificationBadge status={driver.verification.status} />
+              {driver.accountStatus === 'suspended' && <Badge tone='red'>Suspended</Badge>}
+            </div>
           </div>
-          {data.missingFields.length > 0 && <p className='rounded-lg bg-amber-50 p-3 text-sm text-amber-900'>Missing: {data.missingFields.join(', ')}</p>}
 
-          <div className='grid grid-cols-2 gap-3'>
+          {data.missingFields.length > 0 && <Note tone='amber' icon='ri-error-warning-fill'><b>Profile incomplete:</b> {data.missingFields.join(', ')}</Note>}
+
+          <div className='grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3'>
             <Detail label='Experience'>{driver.experienceYears} years</Detail>
             <Detail label='Languages'>{driver.languages.join(', ')}</Detail>
-            <Detail label='Licence'>{driver.licence?.number && `${driver.licence.number} · valid till ${shortDate(driver.licence.expiry)}`}</Detail>
+            <Detail label='Rating'><Stars value={driver.rating.average} count={driver.rating.count} /></Detail>
+            <Detail label='Licence number'>{driver.licence?.number}</Detail>
+            <Detail label='Licence valid until'>{driver.licence?.expiry && shortDate(driver.licence.expiry)}</Detail>
             <Detail label='Emergency contact'>{driver.emergencyContact?.name && `${driver.emergencyContact.name} · ${driver.emergencyContact.phone}`}</Detail>
             <Detail label='Address'>{driver.address}</Detail>
             <Detail label='Service radius'>{driver.serviceRadiusKm} km</Detail>
+            <Detail label='Working hours'>{workingHours(driver.workingHours)}</Detail>
             <Detail label='Cars'>{driver.vehicleTypes.map((t) => CAR_TYPES[t]).join(', ')}</Detail>
             <Detail label='Gears'>{driver.transmissions.map((t) => TRANSMISSIONS[t]).join(', ')}</Detail>
             <Detail label='Rates'>{[driver.rates?.hourly && `${rupees(driver.rates.hourly)}/h`, driver.rates?.fullDay && `${rupees(driver.rates.fullDay)}/day`, driver.rates?.outstationPerDay && `${rupees(driver.rates.outstationPerDay)}/outstation day`].filter(Boolean).join(' · ')}</Detail>
-            <Detail label='Cancellation rate'>{driver.cancellationRate}%</Detail>
           </div>
-          <div className='flex flex-wrap gap-1'>{driver.services.map((s) => <Badge key={s} tone='teal'>{BOOKING_TYPES[s]?.label}</Badge>)}</div>
-          {driver.about && <p className='text-sm text-gray-700'>{driver.about}</p>}
-          {driver.verification.note && <p className='text-sm text-gray-600'>Last note: {driver.verification.note}</p>}
 
-          <Card className='space-y-3 bg-gray-50'>
-            <Field label='Note to driver (required to reject)'><Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} /></Field>
+          {driver.services.length > 0 && <div className='flex flex-wrap gap-1.5'>{driver.services.map((s) => <Badge key={s} tone='brand'>{BOOKING_TYPES[s]?.label}</Badge>)}</div>}
+          {driver.about && <p className='rounded-xl bg-slate-50 p-3.5 text-sm leading-relaxed text-slate-600'>{driver.about}</p>}
+
+          <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
+            {[
+              ['Completed trips', data.earnings.trips],
+              ['Driver earnings', rupees(data.earnings.net)],
+              ['Platform revenue', rupees(data.earnings.commission)],
+              ['Cancellation rate', `${driver.cancellationRate}%`],
+            ].map(([label, value]) => (
+              <div key={label} className='rounded-xl bg-slate-50 p-3'><p className='tabular text-lg font-extrabold text-slate-900'>{value}</p><p className='text-xs text-slate-500'>{label}</p></div>
+            ))}
+          </div>
+          {data.complaints > 0 && <Note tone='red' icon='ri-feedback-fill'>{data.complaints} {data.complaints === 1 ? 'complaint' : 'complaints'} from customers about this driver.</Note>}
+
+          <div className='space-y-3 rounded-2xl border border-slate-200 p-4'>
+            <p className='text-sm font-bold text-slate-900'>Decision</p>
+            {driver.verification.note && <p className='text-sm text-slate-500'>Last note: “{driver.verification.note}”</p>}
+            <Field label='Note to the driver' hint='Required to reject. The driver sees this note.'><Textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} className='min-h-[72px]' /></Field>
             <ErrorNote>{update.error && errorMessage(update.error)}</ErrorNote>
             <div className='flex flex-wrap gap-2'>
               {driver.verification.status !== 'verified' && (
-                <Button loading={update.isPending} onClick={() => update.mutate({ path: 'verification', body: { status: 'verified', note: note || undefined }, message: 'Driver verified' })}>Verify driver</Button>
+                <Button variant='brand' disabled={update.isPending} loading={pending('verify')} onClick={() => act('verify', 'verification', { status: 'verified', note: note.trim() || undefined }, 'Driver verified')}>Verify driver</Button>
               )}
               {driver.verification.status !== 'rejected' && (
-                <Button variant='danger' disabled={!note} loading={update.isPending} onClick={() => update.mutate({ path: 'verification', body: { status: 'rejected', note }, message: 'Driver rejected' })}>Reject</Button>
+                <Button variant='danger' disabled={!note.trim() || update.isPending} loading={pending('reject')} onClick={() => act('reject', 'verification', { status: 'rejected', note: note.trim() }, 'Driver rejected')}>Reject</Button>
               )}
               {driver.accountStatus === 'active'
-                ? <Button variant='secondary' loading={update.isPending} onClick={() => update.mutate({ path: 'account-status', body: { accountStatus: 'suspended' }, message: 'Driver suspended' })}>Suspend account</Button>
-                : <Button variant='secondary' loading={update.isPending} onClick={() => update.mutate({ path: 'account-status', body: { accountStatus: 'active' }, message: 'Driver reactivated' })}>Reactivate account</Button>}
+                ? <Button variant='secondary' disabled={update.isPending} loading={pending('suspend')} onClick={() => act('suspend', 'account-status', { accountStatus: 'suspended' }, 'Driver suspended')}>Suspend account</Button>
+                : <Button variant='secondary' disabled={update.isPending} loading={pending('activate')} onClick={() => act('activate', 'account-status', { accountStatus: 'active' }, 'Driver reactivated')}>Reactivate account</Button>}
             </div>
-          </Card>
+          </div>
 
           {data.recentBookings.length > 0 && (
             <div>
-              <p className='mb-2 font-semibold'>Recent bookings</p>
-              <ul className='space-y-1 text-sm'>
+              <p className='mb-2 text-sm font-bold text-slate-900'>Recent bookings</p>
+              <ul className='divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm'>
                 {data.recentBookings.map((b) => (
-                  <li key={b._id} className='flex justify-between gap-2'><span>{shortDate(b.startTime)} · {fullName(b.customer)}</span><StatusBadge status={b.status} /></li>
+                  <li key={b._id} className='flex items-center justify-between gap-2 px-3.5 py-2.5'>
+                    <span className='min-w-0 truncate'>{shortDate(b.startTime)} · {fullName(b.customer)} · <span className='tabular'>{rupees(b.pricing.driverCharges)}</span></span>
+                    <StatusBadge status={b.status} />
+                  </li>
                 ))}
               </ul>
             </div>

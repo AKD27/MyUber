@@ -113,3 +113,23 @@ module.exports.reverseGeocode = async (lat, lng) => {
 
     return formatPhotonFeature(feature);
 }
+
+// Driving route between two { ltd, lng } points with the line to draw on a map, as [ lat, lng ] pairs.
+module.exports.getRoutePath = async (from, to) => {
+    const response = await http.get(
+        `${OSRM_URL}/route/v1/driving/${from.lng},${from.ltd};${to.lng},${to.ltd}`,
+        { params: { overview: 'simplified', geometries: 'geojson' } }
+    );
+
+    const route = response.data?.routes?.[ 0 ];
+
+    if (response.data?.code !== 'Ok' || !route) {
+        throw new Error('No routes found');
+    }
+
+    return {
+        distance: { value: Math.round(route.distance) },
+        duration: { value: Math.round(route.duration) },
+        path: route.geometry.coordinates.map(([ lng, lat ]) => [ lat, lng ])
+    };
+}

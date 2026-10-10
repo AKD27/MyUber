@@ -3,13 +3,15 @@ const bookingModel = require('../models/booking.model');
 const driverModel = require('../models/driver.model');
 const userModel = require('../models/user.model');
 const reviewModel = require('../models/review.model');
-const { BOOKING_TYPES, BOOKING_STATUS: S, ACTIVE_BOOKING_STATUSES } = require('../config/constants');
+const { BOOKING_TYPES, BOOKING_STATUS: S, ACTIVE_BOOKING_STATUSES, TRACKING_STATUSES } = require('../config/constants');
 const { bookingRequestTimeoutMs, maxOtpAttempts } = require('../config/env');
 const { resolvePlace, estimateRoute } = require('./maps.service');
 const { endOfBooking, reserveSlots, releaseSlots } = require('./availability.service');
 const { searchAvailableDrivers } = require('./driver.service');
 const { overtimeCharges, withCommission } = require('./pricing.service');
 const { emitToAccount } = require('../socket');
+const notifications = require('./notification.service');
+const { locationOf } = require('./tracking.service');
 const httpError = require('../utils/httpError');
 
 const OTP_LOCK_MS = 15 * 60 * 1000;
@@ -19,13 +21,26 @@ const generateOtp = () => crypto.randomInt(1000, 10000).toString();
 // ---------- Views: each side sees only what it needs ----------
 
 const CUSTOMER_FIELDS = 'fullname phone rating';
-const DRIVER_FIELDS = 'fullname phone profilePhotoUrl rating experienceYears languages';
+const DRIVER_FIELDS = 'fullname phone profilePhotoUrl rating experienceYears languages location locationUpdatedAt';
 
 // Contact details are shared once the driver has accepted, and stop being shown once the booking is over.
 const CONTACT_STATUSES = [ ...ACTIVE_BOOKING_STATUSES, S.TRIP_COMPLETED ];
 
+// The driver's position is only passed on while the customer may follow them.
+const takeDriverLocation = (view) => {
+    const location = locationOf(view.driver);
+
+    if (view.driver) {
+        delete view.driver.location;
+        delete view.driver.locationUpdatedAt;
+    }
+
+    return TRACKING_STATUSES.includes(view.status) ? location : undefined;
+}
+
 const toCustomerView = (booking) => {
     const view = booking.toJSON();
+    view.driverLocation = takeDriverLocation(view);
 
     if (view.driver && !CONTACT_STATUSES.includes(view.status)) {
         delete view.driver.phone;
@@ -40,6 +55,7 @@ const toCustomerView = (booking) => {
 
 const toDriverView = (booking) => {
     const view = booking.toJSON();
+    takeDriverLocation(view);
     delete view.startOtp;
     delete view.endOtp;
 
@@ -60,14 +76,17 @@ const populateBooking = (query) => query
 
 const loadBooking = (id) => populateBooking(bookingModel.findById(id));
 
-// Tells both sides about a change, each with their own view of the booking.
-// New requests reach the driver as 'booking:request' so the app can show accept/reject.
-const notify = (booking, message, driverEvent = 'booking:updated') => {
+// Tells both sides about a change, each with their own view of the booking and, when the change
+// was made by someone else, a message for them. New requests reach the driver as 'booking:request'.
+const notify = (booking, messages = {}, driverEvent = 'booking:updated') => {
     const customerId = booking.customer?._id || booking.customer;
     const driverId = booking.driver?._id || booking.driver;
 
-    emitToAccount('customer', customerId, 'booking:updated', { message, booking: toCustomerView(booking) });
-    emitToAccount('driver', driverId, driverEvent, { message, booking: toDriverView(booking) });
+    emitToAccount('customer', customerId, 'booking:updated', { message: messages.customer, booking: toCustomerView(booking) });
+    emitToAccount('driver', driverId, driverEvent, { message: messages.driver, booking: toDriverView(booking) });
+
+    if (messages.customer) notifications.push('customer', customerId, messages.customer, booking._id);
+    if (messages.driver) notifications.push('driver', driverId, messages.driver, booking._id);
 }
 
 // ---------- Search and create ----------
@@ -112,7 +131,8 @@ module.exports.createBooking = async (customer, input) => {
         throw httpError(409, 'This driver is no longer available for this booking. Please choose another driver.');
     }
 
-    const requestExpiresAt = new Date(Math.min(Date.now() + bookingRequestTimeoutMs, details.startTime.getTime()));
+    // The driver always gets the full time to answer, even when the booking starts very soon.
+    const requestExpiresAt = new Date(Date.now() + bookingRequestTimeoutMs);
 
     const created = await bookingModel.create({
         customer: customer._id,
@@ -136,7 +156,7 @@ module.exports.createBooking = async (customer, input) => {
     });
 
     const booking = await loadBooking(created._id);
-    notify(booking, `New booking request from ${customer.fullname.firstname}`, 'booking:request');
+    notify(booking, { driver: `New booking request from ${customer.fullname.firstname}` }, 'booking:request');
     return booking;
 }
 
@@ -186,7 +206,7 @@ module.exports.acceptBooking = async (driver, bookingId) => {
             const rejected = await transition({ _id: bookingId }, [ S.REQUESTED ], S.DRIVER_REJECTED, {
                 rejectionReason: 'Driver is no longer available at this time'
             }).catch(() => null);
-            if (rejected) notify(rejected, 'The driver is no longer available. Please choose another driver.');
+            if (rejected) notify(rejected, { customer: 'The driver is no longer available. Please choose another driver.' });
         }
         throw err;
     }
@@ -194,7 +214,7 @@ module.exports.acceptBooking = async (driver, bookingId) => {
     try {
         const accepted = await transition({ _id: bookingId, driver: driver._id, requestExpiresAt: { $gt: new Date() } }, [ S.REQUESTED ], S.DRIVER_ACCEPTED);
         await driverModel.updateOne({ _id: driver._id }, { $inc: { 'stats.acceptedBookings': 1 } });
-        notify(accepted, `${driver.fullname.firstname} accepted your booking`);
+        notify(accepted, { customer: `${driver.fullname.firstname} accepted your booking` });
         return accepted;
     } catch (err) {
         // Cancelled or expired while we were reserving.
@@ -207,19 +227,19 @@ module.exports.rejectBooking = async (driver, bookingId, reason) => {
     const booking = await transition({ _id: bookingId, driver: driver._id }, [ S.REQUESTED ], S.DRIVER_REJECTED, {
         rejectionReason: reason || 'Driver is unavailable'
     });
-    notify(booking, `${driver.fullname.firstname} could not take this booking. Please choose another driver.`);
+    notify(booking, { customer: `${driver.fullname.firstname} could not take this booking. Please choose another driver.` });
     return booking;
 }
 
 module.exports.markOnTheWay = async (driver, bookingId) => {
     const booking = await transition({ _id: bookingId, driver: driver._id }, [ S.DRIVER_ACCEPTED ], S.DRIVER_ON_THE_WAY);
-    notify(booking, `${driver.fullname.firstname} is on the way`);
+    notify(booking, { customer: `${driver.fullname.firstname} is on the way` });
     return booking;
 }
 
 module.exports.markArrived = async (driver, bookingId) => {
     const booking = await transition({ _id: bookingId, driver: driver._id }, [ S.DRIVER_ACCEPTED, S.DRIVER_ON_THE_WAY ], S.DRIVER_ARRIVED);
-    notify(booking, `${driver.fullname.firstname} has arrived at the pickup`);
+    notify(booking, { customer: `${driver.fullname.firstname} has arrived at the pickup` });
     return booking;
 }
 
@@ -259,7 +279,7 @@ module.exports.startTrip = async (driver, bookingId, otp) => {
 
     const booking = await transition({ _id: bookingId, driver: driver._id },
         [ S.DRIVER_ACCEPTED, S.DRIVER_ON_THE_WAY, S.DRIVER_ARRIVED ], S.TRIP_STARTED, { tripStartedAt: new Date() });
-    notify(booking, 'Your trip has started');
+    notify(booking, { customer: 'Your trip has started' });
     return booking;
 }
 
@@ -281,10 +301,10 @@ module.exports.completeTrip = async (driver, bookingId, otp) => {
         pricing
     });
 
-    // Hours after an early finish become free again.
-    await releaseSlots(booking._id, completedAt);
+    // The driver is free from now on, including the rest of the current hour.
+    await releaseSlots(booking._id);
 
-    notify(booking, `Trip completed. Please pay ₹${pricing.driverCharges} to your driver.`);
+    notify(booking, { customer: `Trip completed. Please pay ₹${pricing.driverCharges} to your driver.` });
     return booking;
 }
 
@@ -298,7 +318,7 @@ module.exports.confirmCashPayment = async (driver, bookingId) => {
         $inc: { 'stats.completedTrips': 1, 'stats.totalEarnings': booking.pricing.driverEarning }
     });
 
-    notify(booking, 'Payment received. Please rate your driver.');
+    notify(booking, { customer: 'Payment received. Please rate your driver.' });
     return booking;
 }
 
@@ -309,7 +329,7 @@ module.exports.cancelByCustomer = async (customer, bookingId, reason) => {
         cancellation: { by: 'customer', reason }
     });
     await releaseSlots(booking._id);
-    notify(booking, `${customer.fullname.firstname} cancelled the booking`);
+    notify(booking, { driver: `${customer.fullname.firstname} cancelled the booking` });
     return booking;
 }
 
@@ -319,7 +339,7 @@ module.exports.cancelByDriver = async (driver, bookingId, reason) => {
     });
     await releaseSlots(booking._id);
     await driverModel.updateOne({ _id: driver._id }, { $inc: { 'stats.cancelledByDriver': 1 } });
-    notify(booking, `${driver.fullname.firstname} cancelled the booking. Please book another driver.`);
+    notify(booking, { customer: `${driver.fullname.firstname} cancelled the booking. Please book another driver.` });
     return booking;
 }
 
@@ -330,11 +350,45 @@ module.exports.expireStaleRequests = async () => {
     for (const { _id } of stale) {
         const booking = await transition({ _id, requestExpiresAt: { $lte: new Date() } }, [ S.REQUESTED ], S.EXPIRED).catch(() => null);
         if (booking) {
-            notify(booking, 'The driver did not respond in time. Please choose another driver.');
+            notify(booking, {
+                customer: 'The driver did not respond in time. Please choose another driver.',
+                driver: 'A booking request expired because it was not answered in time'
+            });
         }
     }
 
     return stale.length;
+}
+
+// Accepted bookings whose whole time window passed without the trip ever starting.
+module.exports.closeMissedBookings = async () => {
+    const missed = await bookingModel.find({ status: { $in: CANCELLABLE.slice(1) }, endTime: { $lte: new Date() } }).select('_id');
+
+    for (const { _id } of missed) {
+        const booking = await transition({ _id, endTime: { $lte: new Date() } }, CANCELLABLE.slice(1), S.CANCELLED, {
+            cancellation: { by: 'system', reason: 'The trip was not started in the booked time' }
+        }).catch(() => null);
+
+        if (booking) {
+            await releaseSlots(booking._id);
+            const message = 'A booking was closed because the trip did not start in the booked time';
+            notify(booking, { customer: message, driver: message });
+        }
+    }
+
+    return missed.length;
+}
+
+// Support can cancel any booking that has not started yet.
+module.exports.cancelByAdmin = async (bookingId, reason) => {
+    const booking = await transition({ _id: bookingId }, CANCELLABLE, S.CANCELLED, {
+        cancellation: { by: 'admin', reason }
+    });
+    await releaseSlots(booking._id);
+
+    const message = `Support cancelled a booking: ${reason}`;
+    notify(booking, { customer: message, driver: message });
+    return booking;
 }
 
 // ---------- Reviews ----------
@@ -360,7 +414,7 @@ module.exports.reviewDriver = async (customer, bookingId, { rating, comment }) =
     await driverModel.addRating(booking.driver, rating);
 
     const updated = await transition({ _id: bookingId }, [ S.PAYMENT_COMPLETED ], S.RATING_COMPLETED, { customerReview: review._id });
-    notify(updated, `${customer.fullname.firstname} rated the trip ${rating}★`);
+    notify(updated, { driver: `${customer.fullname.firstname} rated the trip ${rating}★` });
     return updated;
 }
 

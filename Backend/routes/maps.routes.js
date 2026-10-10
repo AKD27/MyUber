@@ -15,4 +15,12 @@ router.get('/reverse',
     validate({ query: z.object({ lat: z.coerce.number().min(-90).max(90), lng: z.coerce.number().min(-180).max(180) }) }),
     asyncHandler(mapsController.reverseGeocode));
 
+router.get('/geocode',
+    validate({ query: z.object({ address: z.string().trim().min(3).max(300) }) }),
+    asyncHandler(mapsController.geocode));
+
+router.get('/route',
+    validate({ query: z.object({ fromLat: z.coerce.number().min(-90).max(90), fromLng: z.coerce.number().min(-180).max(180), toLat: z.coerce.number().min(-90).max(90), toLng: z.coerce.number().min(-180).max(180) }) }),
+    asyncHandler(mapsController.getRoute));
+
 module.exports = router;

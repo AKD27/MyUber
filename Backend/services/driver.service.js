@@ -5,6 +5,9 @@ const { searchRadiusKm } = require('../config/env');
 const { resolvePlace } = require('./maps.service');
 const { REQUIRED_RATES, quote } = require('./pricing.service');
 const { busyDriverIds } = require('./availability.service');
+const { emitToAdmins } = require('../socket');
+const { savePhoto, removePhoto } = require('./upload.service');
+const { localClock, toMinutes } = require('../utils/localTime');
 const httpError = require('../utils/httpError');
 
 const RATE_LABELS = { hourly: 'hourly rate', fullDay: 'full-day rate', outstationPerDay: 'outstation per-day rate' };
@@ -70,6 +73,17 @@ module.exports.updateProfile = async (driver, updates) => {
     return driver;
 }
 
+// Replaces the driver's profile photo with an uploaded image.
+module.exports.updatePhoto = async (driver, file) => {
+    const previous = driver.profilePhotoUrl;
+
+    driver.profilePhotoUrl = await savePhoto(file);
+    await driver.save();
+    await removePhoto(previous);
+
+    return driver;
+}
+
 module.exports.submitForVerification = async (driver) => {
     if ([ DRIVER_VERIFICATION.UNDER_REVIEW, DRIVER_VERIFICATION.VERIFIED ].includes(driver.verification.status)) {
         throw httpError(409, `Your profile is already ${driver.verification.status.replace('_', ' ')}`);
@@ -86,6 +100,8 @@ module.exports.submitForVerification = async (driver) => {
         submittedAt: new Date()
     };
     await driver.save();
+
+    emitToAdmins('admin:alert', { type: 'verification', message: `${driver.fullname.firstname} submitted their profile for verification` });
     return driver;
 }
 
@@ -126,6 +142,18 @@ const toPublicDriver = (driver) => ({
 });
 
 module.exports.toPublicDriver = toPublicDriver;
+
+// Drivers with working hours switched on are only offered bookings that start inside them.
+const isWorkingAt = (driver, startTime) => {
+    const hours = driver.workingHours;
+
+    if (!hours?.enabled) {
+        return true;
+    }
+
+    const { day, minutes } = localClock(startTime);
+    return hours.days.includes(day) && minutes >= toMinutes(hours.start) && minutes < toMinutes(hours.end);
+}
 
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -171,7 +199,7 @@ module.exports.searchAvailableDrivers = async ({ bookingType, pickup, startTime,
     const busy = await busyDriverIds(candidates.map(driver => driver._id), startTime, endTime);
 
     const drivers = candidates
-        .filter(driver => !busy.has(driver._id.toString()))
+        .filter(driver => !busy.has(driver._id.toString()) && isWorkingAt(driver, startTime))
         .map(driver => ({
             ...toPublicDriver(driver),
             distanceKm: Math.round(driver.distanceMeters / 100) / 10,

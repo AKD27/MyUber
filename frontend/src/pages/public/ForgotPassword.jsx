@@ -4,19 +4,21 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import AuthShell from './AuthShell'
-import { Button, Field, Input, Select, ErrorNote } from '../../components/ui'
+import { Button, Field, Icon, Input, Note, Select, ErrorNote } from '../../components/ui'
 import { api, errorMessage } from '../../lib/api'
 import { email } from '../../lib/schemas'
 
-const schema = z.object({ email, role: z.enum(['customer', 'driver', 'admin']) })
+const ROLES = ['customer', 'driver', 'admin']
+const schema = z.object({ email, role: z.enum(ROLES) })
 
 export default function ForgotPassword() {
   const location = useLocation()
+  const requested = new URLSearchParams(location.search).get('as')
   const [sent, setSent] = useState('')
   const [error, setError] = useState('')
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { role: new URLSearchParams(location.search).get('as') || 'customer' },
+    defaultValues: { role: ROLES.includes(requested) ? requested : 'customer' },
   })
 
   const onSubmit = async (values) => {
@@ -30,9 +32,9 @@ export default function ForgotPassword() {
   }
 
   return (
-    <AuthShell title='Forgot password' subtitle='We will email you a link to set a new password.'>
+    <AuthShell title='Forgot your password?' subtitle='Enter your email and we will send you a link to set a new one.'>
       {sent ? (
-        <p className='rounded-lg bg-teal-50 p-3 text-sm text-teal-900'>{sent}</p>
+        <Note tone='brand' icon='ri-mail-check-fill'>{sent} The link works for 30 minutes.</Note>
       ) : (
         <form className='space-y-4' onSubmit={handleSubmit(onSubmit)} noValidate>
           <Field label='Account type'>
@@ -42,12 +44,12 @@ export default function ForgotPassword() {
               <option value='admin'>Admin</option>
             </Select>
           </Field>
-          <Field label='Email' error={errors.email?.message}><Input type='email' {...register('email')} /></Field>
+          <Field label='Email' error={errors.email?.message}><Input type='email' autoComplete='email' placeholder='you@example.com' aria-invalid={Boolean(errors.email)} {...register('email')} /></Field>
           <ErrorNote>{error}</ErrorNote>
-          <Button type='submit' className='w-full' loading={isSubmitting}>Send reset link</Button>
+          <Button type='submit' size='lg' className='w-full' loading={isSubmitting}>Send reset link</Button>
         </form>
       )}
-      <p className='mt-4 text-center text-sm'><Link to='/login' className='text-teal-700 hover:underline'>Back to log in</Link></p>
+      <p className='mt-6 text-center text-sm'><Link to='/login' className='inline-flex items-center gap-1 font-semibold text-brand-700 hover:underline'><Icon name='ri-arrow-left-line' />Back to log in</Link></p>
     </AuthShell>
   )
 }
